@@ -36,7 +36,7 @@ named `Dependencies`, which contain a simple line-by-line list of
 dependencies for a given component. Each line is an asbolute path
 in the repository (and there should be a `Dependencies` file on that path).
 
-You can override the search pattern with th `--dependency-files`. The pattern
+You can override the search pattern with the `--dependency-files`. The pattern
 supports the same glob rules as the `find` command.
 
 ```sh
@@ -104,7 +104,7 @@ The resulting Makefile consists of targets like this:
 
 ```make
 directory/component1: [dependency1] [dependency2] [dependency3]
-  @cd directory/component1 && make install
+  @cd directory/component1 && make build
 ```
 
 This assumes each component has a minimal `Makefile` which looks like this:
@@ -115,7 +115,7 @@ This assumes each component has a minimal `Makefile` which looks like this:
 default:
   @cd ../.. && make directory/component1
 
-install:
+build:
   # steps to make the component available as a dependency of others
   # this could be empty
 ```
