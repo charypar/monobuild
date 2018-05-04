@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"os/exec"
 	"strings"
+
+	"github.com/charypar/monobuild/graph"
+	"github.com/charypar/monobuild/set"
 )
 
 func diffBase(mainBranch bool, baseBranch string) (string, error) {
@@ -70,11 +73,11 @@ func Diff(manifestPaths []string, baseBranch string, mainBranch bool) ([]string,
 	chgdComponents := changedComponents(components, changes)
 
 	// Construct build graph
-	dependencyGraph := NewGraph(dependencies)
+	dependencyGraph := graph.New(dependencies)
 	buildGraph := dependencyGraph.Reverse()
 
 	// Include the dependents
-	componentsToBuild := buildGraph.Descendants(vertices(chgdComponents)).AsStrings()
+	componentsToBuild := buildGraph.Descendants(set.New(chgdComponents)).AsStrings()
 
 	return componentsToBuild, nil
 }
