@@ -1,7 +1,9 @@
 package main
 
-import "log"
+import (
+	"github.com/charypar/monobuild/cmd"
+)
 
 func main() {
-	log.Printf("Hello")
+	cmd.Execute()
 }
