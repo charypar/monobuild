@@ -14,15 +14,15 @@ based on it can decide what should be built, given a set of changes.
 For help, run
 
 ```sh
-$ mb help
+$ mb --help
 ```
 
 It can do three basic things
 
 ### Change detection
 
-If the current directory is a git repository, given a commit sha,
-monobuild can decide which components changed (using git).
+If the current directory is a git repository, monobuild can decide which
+components changed (using git).
 
 ```sh
 $ mb diff
@@ -49,7 +49,7 @@ in two modes:
 1.  for a feature branch, the change detection is equivalent to
 
     ```sh
-    $ git diff --no-commit-id --name-only -r $(git merge-base origin/master HEAD)
+    $ git diff --no-commit-id --name-only -r $(git merge-base master HEAD)
     ```
 
     in other words, list all the changes that happened since the current branch
