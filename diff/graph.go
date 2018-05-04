@@ -65,7 +65,7 @@ type Graph struct {
 	edges map[string]Vertices
 }
 
-// New creates a new Graph from a map of vertex to vertex label describing the edges
+// NewGraph creates a new Graph from a map of vertex to vertex label describing the edges
 func NewGraph(edges map[string][]string) Graph {
 	edgs := make(map[string]Vertices)
 
@@ -111,6 +111,7 @@ func (g Graph) Descendants(vertices Vertices) Vertices {
 	return descendants
 }
 
+// Reverse returns a new graph with edges reversed
 func (g Graph) Reverse() Graph {
 	edges := make(map[string]Vertices)
 
