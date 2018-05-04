@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/charypar/monobuild/graph"
+	"github.com/charypar/monobuild/manifests"
 	"github.com/charypar/monobuild/set"
 )
 
@@ -58,9 +59,14 @@ func changedComponents(components []string, changedFiles []string) []string {
 // Diff calculates the list of paths that need to be built based on the list of
 func Diff(manifestPaths []string, baseBranch string, mainBranch bool) ([]string, error) {
 	// Find components and dependency manifests
-	components, dependencies, err := readManifests(manifestPaths)
-	if err != nil {
-		return []string{}, fmt.Errorf("cannot load dependencies: %s", err)
+	components, dependencies, errs := manifests.Read(manifestPaths, true)
+	if errs != nil {
+		errstrings := make([]string, len(errs))
+		for i, e := range errs {
+			errstrings[i] = string(e.Error())
+		}
+
+		return []string{}, fmt.Errorf("cannot load dependencies:\n%s", strings.Join(errstrings, "\n"))
 	}
 
 	// Get changed files

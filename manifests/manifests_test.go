@@ -1,4 +1,4 @@
-package diff
+package manifests
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ func chdir(dir string) {
 	}
 }
 
-func Test_readManifests(t *testing.T) {
+func Test_Read(t *testing.T) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		panic(fmt.Errorf("Error finding current directory: %s", err))
@@ -76,17 +76,17 @@ func Test_readManifests(t *testing.T) {
 				panic(fmt.Errorf("Error finding dependency manifests: %s", err))
 			}
 
-			got, got1, err := readManifests(manifests)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("readManifests() error = %v, wantErr %v", err, tt.wantErr)
+			got, got1, errs := Read(manifests, true)
+			if (errs != nil) != tt.wantErr {
+				t.Errorf("Read() error = %v, wantErr %v", errs, tt.wantErr)
 				return
 			}
 
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("readManifests() got = %#v, want %#v", got, tt.want)
+				t.Errorf("Read() got = %#v, want %#v", got, tt.want)
 			}
 			if !reflect.DeepEqual(got1, tt.want1) {
-				t.Errorf("readManifests() got1 = %#v, want %#v", got1, tt.want1)
+				t.Errorf("Read() got1 = %#v, want %#v", got1, tt.want1)
 			}
 		})
 	}
