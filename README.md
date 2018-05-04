@@ -55,7 +55,7 @@ in two modes:
     in other words, list all the changes that happened since the current branch
     was cut from `origin/master`.
 
-    This is the default mode and the base branch is `origin/master` by default.
+    This is the default mode and the base branch is `master` by default.
     You can override this with
 
     ```sh
@@ -84,6 +84,18 @@ Monobuild will start with the list from git diff, filter it down to known
 components, and then extend it with all components that depend on any of the
 components in the initial list, including transitive dependencies. The dependency
 graph is built from the `Dependencies` files.
+
+You can validate and print the dependency graph with
+
+```sh
+$ mb validate
+```
+
+Like all commands, print also takes `--dependency-files` flag
+
+```sh
+$ mb validate --dependency-files **/Dependencies
+```
 
 ### Creating a Makefile
 
