@@ -52,7 +52,7 @@ func printFn(cmd *cobra.Command, args []string) {
 
 		for c, deps := range dependencies {
 			for _, d := range deps {
-				fmt.Printf("  %s -> %s\n", c, d)
+				fmt.Printf("  \"%s\" -> \"%s\"\n", c, d)
 			}
 		}
 
