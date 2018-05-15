@@ -62,7 +62,27 @@ func diffFn(cmd *cobra.Command, args []string) {
 		panic(fmt.Errorf("Error finding out changed components: %s", err))
 	}
 
-	for c, d := range buildSchedule {
-		fmt.Printf("%s: %s\n", c, strings.Join(d, ", "))
+	if !dotFormat {
+		for c, d := range buildSchedule {
+			fmt.Printf("%s: %s\n", c, strings.Join(d, ", "))
+		}
+
+		return
 	}
+
+	fmt.Println("digraph graphname {")
+	fmt.Println("  rankdir=\"LR\"")
+	fmt.Println("  node [shape=box]")
+
+	for c, deps := range buildSchedule {
+		if len(deps) < 1 {
+			fmt.Printf("  \"%s\"", c)
+		}
+
+		for _, d := range deps {
+			fmt.Printf("  \"%s\" -> \"%s\"\n", c, d)
+		}
+	}
+
+	fmt.Println("}")
 }
