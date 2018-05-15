@@ -26,6 +26,7 @@ func init() {
 
 	diffCmd.Flags().StringVar(&baseBranch, "base-branch", "master", "Base branch to use for comparison")
 	diffCmd.Flags().BoolVar(&mainBranch, "main-branch", false, "Run in main branch mode (i.e. only compare with parent commit)")
+	diffCmd.Flags().BoolVar(&printDependencies, "dependencies", false, "Ouput the dependencies, not the build schedule")
 	diffCmd.Flags().BoolVar(&dotFormat, "dot", false, "Print in DOT format for GraphViz")
 	diffCmd.Flags().BoolVar(&dotHighlight, "dot-highlight", false, "Print in DOT format highlighting changed nodes rather than omitting the unchanged ones")
 }
@@ -43,7 +44,7 @@ func diffFn(cmd *cobra.Command, args []string) {
 	}
 
 	// Find components and dependency manifests
-	components, dependencies, errs := manifests.Read(manifestFiles, true)
+	components, dependencies, errs := manifests.Read(manifestFiles, false)
 	if errs != nil {
 		errstrings := make([]string, len(errs))
 		for i, e := range errs {
@@ -57,30 +58,52 @@ func diffFn(cmd *cobra.Command, args []string) {
 	changedComponents := manifests.FilterComponents(components, changes)
 
 	// Calculate build schedule
-	buildSchedule, err := diff.Diff(changedComponents, dependencies, baseBranch, mainBranch)
-	if err != nil {
-		panic(fmt.Errorf("Error finding out changed components: %s", err))
-	}
+	buildSchedule := diff.BuildSchedule(changedComponents, dependencies, baseBranch, mainBranch)
+	dependencyGraph := diff.Dependencies(changedComponents, dependencies, baseBranch, mainBranch)
 
 	if !dotFormat {
-		for c, d := range buildSchedule {
-			fmt.Printf("%s: %s\n", c, strings.Join(d, ", "))
+		var g map[string][]string
+
+		if printDependencies {
+			g = dependencyGraph
+		} else {
+			g = buildSchedule
 		}
 
+		for c, d := range g {
+			fmt.Printf("%s: %s\n", c, strings.Join(d, ", "))
+		}
 		return
 	}
 
 	fmt.Println("digraph graphname {")
-	fmt.Println("  rankdir=\"LR\"")
-	fmt.Println("  node [shape=box]")
 
-	for c, deps := range buildSchedule {
-		if len(deps) < 1 {
-			fmt.Printf("  \"%s\"", c)
+	if printDependencies {
+		for c, deps := range dependencies {
+			for _, d := range deps {
+				var format string
+
+				if d.Kind == manifests.Strong {
+					format = ""
+				} else {
+					format = " [style=dashed]"
+				}
+
+				fmt.Printf("  \"%s\" -> \"%s\"%s\n", c, d.Name, format)
+			}
 		}
+	} else {
+		fmt.Println("  rankdir=\"LR\"")
+		fmt.Println("  node [shape=box]")
 
-		for _, d := range deps {
-			fmt.Printf("  \"%s\" -> \"%s\"\n", c, d)
+		for c, deps := range buildSchedule {
+			if len(deps) < 1 {
+				fmt.Printf("  \"%s\"\n", c)
+			}
+
+			for _, d := range deps {
+				fmt.Printf("  \"%s\" -> \"%s\"\n", c, d)
+			}
 		}
 	}
 

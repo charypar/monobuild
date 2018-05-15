@@ -46,12 +46,12 @@ func printFn(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	var g map[string][]string
-
 	dependencyGraph := manifests.Filter(dependencies, 0)
 	buildSchedule := graph.New(manifests.Filter(dependencies, 2)).Reverse().AsStrings()
 
 	if !dotFormat {
+		var g map[string][]string
+
 		if printDependencies {
 			g = dependencyGraph
 		} else {
@@ -86,7 +86,7 @@ func printFn(cmd *cobra.Command, args []string) {
 
 		for c, deps := range buildSchedule {
 			if len(deps) < 1 {
-				fmt.Printf("  \"%s\"", c)
+				fmt.Printf("  \"%s\"\n", c)
 			}
 
 			for _, d := range deps {

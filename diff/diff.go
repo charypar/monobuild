@@ -41,8 +41,8 @@ func ChangedFiles(mainBranch bool, baseBranch string) ([]string, error) {
 	return changed, nil
 }
 
-// Diff calculates the build schedule based on the dependencies and changes
-func Diff(changedComponents []string, dependencies map[string][]manifests.Dependency, baseBranch string, mainBranch bool) (map[string][]string, error) {
+// BuildSchedule calculates the build schedule
+func BuildSchedule(changedComponents []string, dependencies map[string][]manifests.Dependency, baseBranch string, mainBranch bool) map[string][]string {
 	impactGraph := graph.New(manifests.Filter(dependencies, 0)).Reverse()
 	impacted := impactGraph.Descendants(set.New(changedComponents)).AsStrings()
 
@@ -51,5 +51,17 @@ func Diff(changedComponents []string, dependencies map[string][]manifests.Depend
 	buildSchedule := fullBuildSchedule.Subgraph(impacted).AsStrings()
 	// Select
 
-	return buildSchedule, nil
+	return buildSchedule
+}
+
+// Dependencies calculates the dependency graph based on the dependencies and changes
+func Dependencies(changedComponents []string, dependencies map[string][]manifests.Dependency, baseBranch string, mainBranch bool) map[string][]string {
+	dependencyGraph := graph.New(manifests.Filter(dependencies, 0))
+
+	impactGraph := dependencyGraph.Reverse()
+	impacted := impactGraph.Descendants(set.New(changedComponents)).AsStrings()
+
+	impactedDependencies := dependencyGraph.Subgraph(impacted).AsStrings()
+
+	return impactedDependencies
 }
