@@ -28,6 +28,69 @@ func init() {
 	printCmd.Flags().BoolVar(&dotFormat, "dot", false, "Print in DOT format for GraphViz")
 }
 
+func printText(graph map[string][]string) string {
+	var result string
+
+	for c, d := range graph {
+		result += fmt.Sprintf("%s: %s\n", c, strings.Join(d, ", "))
+	}
+
+	return result
+}
+
+func printDotGraph(dependencies map[string][]manifests.Dependency, graph map[string][]string) string {
+	result := fmt.Sprintln("digraph dependencies {")
+
+	for c, deps := range dependencies {
+		for _, d := range deps {
+			var format string
+
+			if d.Kind == manifests.Weak {
+				format = " [style=dashed]"
+			}
+
+			result += fmt.Sprintf("  \"%s\" -> \"%s\"%s\n", c, d.Name, format)
+		}
+	}
+
+	return result + "}\n"
+}
+
+func printDotSchedule(dependencies map[string][]manifests.Dependency, graph map[string][]string) string {
+	result := fmt.Sprintln("digraph schedule {\n  rankdir=\"LR\"\n  node [shape=box]")
+
+	for c, deps := range graph {
+		if len(deps) < 1 {
+			result += fmt.Sprintf("  \"%s\"\n", c)
+		}
+
+		for _, d := range deps {
+			result += fmt.Sprintf("  \"%s\" -> \"%s\"\n", c, d)
+		}
+	}
+
+	return result + "}\n"
+}
+
+func printGraph(dependencies map[string][]manifests.Dependency, buildSchedule map[string][]string, dependencyGraph map[string][]string) {
+	if dotFormat && printDependencies {
+		fmt.Print(printDotGraph(dependencies, dependencyGraph))
+		return
+	}
+
+	if dotFormat {
+		fmt.Print(printDotSchedule(dependencies, buildSchedule))
+		return
+	}
+
+	if printDependencies {
+		fmt.Print(printText(dependencyGraph))
+		return
+	}
+
+	fmt.Print(printText(buildSchedule))
+}
+
 func printFn(cmd *cobra.Command, args []string) {
 	paths, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
@@ -49,51 +112,5 @@ func printFn(cmd *cobra.Command, args []string) {
 	dependencyGraph := manifests.Filter(dependencies, 0)
 	buildSchedule := graph.New(manifests.Filter(dependencies, 2)).Reverse().AsStrings()
 
-	if !dotFormat {
-		var g map[string][]string
-
-		if printDependencies {
-			g = dependencyGraph
-		} else {
-			g = buildSchedule
-		}
-
-		for c, d := range g {
-			fmt.Printf("%s: %s\n", c, strings.Join(d, ", "))
-		}
-		return
-	}
-
-	fmt.Println("digraph graphname {")
-
-	if printDependencies {
-		for c, deps := range dependencies {
-			for _, d := range deps {
-				var format string
-
-				if d.Kind == manifests.Strong {
-					format = ""
-				} else {
-					format = " [style=dashed]"
-				}
-
-				fmt.Printf("  \"%s\" -> \"%s\"%s\n", c, d.Name, format)
-			}
-		}
-	} else {
-		fmt.Println("  rankdir=\"LR\"")
-		fmt.Println("  node [shape=box]")
-
-		for c, deps := range buildSchedule {
-			if len(deps) < 1 {
-				fmt.Printf("  \"%s\"\n", c)
-			}
-
-			for _, d := range deps {
-				fmt.Printf("  \"%s\" -> \"%s\"\n", c, d)
-			}
-		}
-	}
-
-	fmt.Println("}")
+	printGraph(dependencies, buildSchedule, dependencyGraph)
 }

@@ -61,51 +61,5 @@ func diffFn(cmd *cobra.Command, args []string) {
 	buildSchedule := diff.BuildSchedule(changedComponents, dependencies, baseBranch, mainBranch)
 	dependencyGraph := diff.Dependencies(changedComponents, dependencies, baseBranch, mainBranch)
 
-	if !dotFormat {
-		var g map[string][]string
-
-		if printDependencies {
-			g = dependencyGraph
-		} else {
-			g = buildSchedule
-		}
-
-		for c, d := range g {
-			fmt.Printf("%s: %s\n", c, strings.Join(d, ", "))
-		}
-		return
-	}
-
-	fmt.Println("digraph graphname {")
-
-	if printDependencies {
-		for c, deps := range dependencies {
-			for _, d := range deps {
-				var format string
-
-				if d.Kind == manifests.Strong {
-					format = ""
-				} else {
-					format = " [style=dashed]"
-				}
-
-				fmt.Printf("  \"%s\" -> \"%s\"%s\n", c, d.Name, format)
-			}
-		}
-	} else {
-		fmt.Println("  rankdir=\"LR\"")
-		fmt.Println("  node [shape=box]")
-
-		for c, deps := range buildSchedule {
-			if len(deps) < 1 {
-				fmt.Printf("  \"%s\"\n", c)
-			}
-
-			for _, d := range deps {
-				fmt.Printf("  \"%s\" -> \"%s\"\n", c, d)
-			}
-		}
-	}
-
-	fmt.Println("}")
+	printGraph(dependencies, buildSchedule, dependencyGraph)
 }
