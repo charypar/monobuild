@@ -58,6 +58,11 @@ func (g Graph) Reverse() Graph {
 	edges := make(map[string]set.Set)
 
 	for v, es := range g.edges {
+		_, ok := edges[v]
+		if !ok {
+			edges[v] = set.New([]string{})
+		}
+
 		for _, e := range es.AsStrings() {
 			_, ok := edges[e]
 			if !ok {
@@ -69,4 +74,15 @@ func (g Graph) Reverse() Graph {
 	}
 
 	return Graph{edges}
+}
+
+// AsStrings returns the graph as a map[string][]string
+func (g Graph) AsStrings() map[string][]string {
+	result := make(map[string][]string, len(g.edges))
+
+	for v, es := range g.edges {
+		result[v] = es.AsStrings()
+	}
+
+	return result
 }

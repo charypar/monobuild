@@ -23,13 +23,13 @@ var Strong Kind = 2
 // component with another. Dependencies hav a string name and a kind, which
 // can be Weak or Strong
 type Dependency struct {
-	name string
-	kind Kind
+	Name string
+	Kind Kind
 }
 
 func validDependency(components []string, dependency Dependency) bool {
 	for _, c := range components {
-		if c == dependency.name {
+		if c == dependency.Name {
 			return true
 		}
 	}
@@ -53,6 +53,8 @@ func readDependency(line string) (Dependency, error) {
 	return Dependency{dep, Weak}, nil
 }
 
+// ReadManifest reads a single manifest file and returns the dependency list
+// or validation errors
 func ReadManifest(path string) (string, []Dependency, []error) {
 	dependencies := make([]Dependency, 0)
 	errors := make([]error, 0)
@@ -75,7 +77,7 @@ func ReadManifest(path string) (string, []Dependency, []error) {
 		}
 
 		// comment or blank line
-		if dep.name == "" {
+		if dep.Name == "" {
 			continue
 		}
 
@@ -90,6 +92,7 @@ func ReadManifest(path string) (string, []Dependency, []error) {
 	return component, dependencies, nil
 }
 
+// Read manifests at manifestPaths and return a graph of dependencies
 func Read(manifestPaths []string, dependOnSelf bool) ([]string, map[string][]Dependency, []error) {
 	dependencies := make(map[string][]Dependency, len(manifestPaths))
 	components := make([]string, 0)
@@ -114,7 +117,7 @@ func Read(manifestPaths []string, dependOnSelf bool) ([]string, map[string][]Dep
 	for manifest, deps := range dependencies {
 		for _, dep := range deps {
 			if !validDependency(components, dep) {
-				errors = append(errors, fmt.Errorf("unknown dependency '%s' of '%s'", dep.name, manifest))
+				errors = append(errors, fmt.Errorf("unknown dependency '%s' of '%s'", dep.Name, manifest))
 			}
 		}
 	}
@@ -124,4 +127,28 @@ func Read(manifestPaths []string, dependOnSelf bool) ([]string, map[string][]Dep
 	}
 
 	return components, dependencies, nil
+}
+
+// Filter the dependencies returned by Read to only strong or only weak
+func Filter(dependencies map[string][]Dependency, kind Kind) map[string][]string {
+	result := make(map[string][]string, len(dependencies))
+
+	for c, deps := range dependencies {
+		rdeps := make([]string, 0, len(deps))
+
+		for _, d := range deps {
+			if kind == 0 {
+				rdeps = append(rdeps, d.Name)
+				continue
+			}
+
+			if d.Kind == kind {
+				rdeps = append(rdeps, d.Name)
+			}
+		}
+
+		result[c] = rdeps
+	}
+
+	return result
 }

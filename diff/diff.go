@@ -79,7 +79,7 @@ func Diff(manifestPaths []string, baseBranch string, mainBranch bool) ([]string,
 	chgdComponents := changedComponents(components, changes)
 
 	// Construct build graph
-	dependencyGraph := graph.New(dependencies)
+	dependencyGraph := graph.New(manifests.Filter(dependencies, 0))
 	buildGraph := dependencyGraph.Reverse()
 
 	// Include the dependents
