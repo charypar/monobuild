@@ -27,7 +27,7 @@ func Test_Read(t *testing.T) {
 		cwd     string
 		pattern string
 		want    []string
-		want1   map[string][]string
+		want1   map[string][]Dependency
 		wantErr bool
 	}{
 		{
@@ -44,15 +44,15 @@ func Test_Read(t *testing.T) {
 				"libs/lib3",
 				"stack1",
 			},
-			map[string][]string{
-				"app1":      []string{"app1", "libs/lib1", "libs/lib2"},
-				"app2":      []string{"app2", "libs/lib2", "libs/lib3"},
-				"app3":      []string{"app3", "libs/lib3"},
-				"app4":      []string{"app4"},
-				"libs/lib1": []string{"libs/lib1", "libs/lib3"},
-				"libs/lib2": []string{"libs/lib2", "libs/lib3"},
-				"libs/lib3": []string{"libs/lib3"},
-				"stack1":    []string{"stack1", "app1", "app2", "app3"},
+			map[string][]Dependency{
+				"app1":      []Dependency{{"app1", Weak}, {"libs/lib1", Weak}, {"libs/lib2", Weak}},
+				"app2":      []Dependency{{"app2", Weak}, {"libs/lib2", Weak}, {"libs/lib3", Weak}},
+				"app3":      []Dependency{{"app3", Weak}, {"libs/lib3", Weak}},
+				"app4":      []Dependency{{"app4", Weak}},
+				"libs/lib1": []Dependency{{"libs/lib1", Weak}, {"libs/lib3", Weak}},
+				"libs/lib2": []Dependency{{"libs/lib2", Weak}, {"libs/lib3", Weak}},
+				"libs/lib3": []Dependency{{"libs/lib3", Weak}},
+				"stack1":    []Dependency{{"stack1", Weak}, {"app1", Strong}, {"app2", Strong}, {"app3", Strong}},
 			},
 			false,
 		},
