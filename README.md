@@ -175,7 +175,7 @@ in two modes:
 The main difference between the above `git diff`s and `mb diff` is the
 dependency graph awareness.
 
-Monobuild will start with the list from git diff, filter it down to known
+Monobuild will start with the list from `git diff`, filter it down to known
 components, and then extend it with all components that depend on any of the
 components in the initial list, including transitive dependencies.
 

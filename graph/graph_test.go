@@ -164,3 +164,65 @@ func TestGraph_Reverse(t *testing.T) {
 		})
 	}
 }
+
+func TestGraph_Subgraph(t *testing.T) {
+
+	tests := []struct {
+		name  string
+		graph Graph
+		nodes []string
+		want  Graph
+	}{
+		{
+			"works with empty graph",
+			New(map[string][]string{}),
+			[]string{},
+			New(map[string][]string{}),
+		},
+		{
+			"works with empty selection",
+			New(map[string][]string{
+				"a": []string{"b", "c"},
+				"b": []string{"c"},
+				"c": []string{},
+			}),
+			[]string{},
+			New(map[string][]string{}),
+		},
+		{
+			"works with a selection",
+			New(map[string][]string{
+				"a": []string{"b", "c"},
+				"b": []string{"c"},
+				"c": []string{},
+			}),
+			[]string{"b", "c"},
+			New(map[string][]string{
+				"b": []string{"c"},
+				"c": []string{},
+			}),
+		},
+		{
+			"works on a larger graph",
+			New(map[string][]string{
+				"a": []string{"b", "c"},
+				"b": []string{"d"},
+				"c": []string{"d"},
+				"d": []string{"a"},
+			}),
+			[]string{"a", "c"},
+			New(map[string][]string{
+				"a": []string{"c"},
+				"c": []string{},
+			}),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+
+			if got := tt.graph.Subgraph(tt.nodes); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Graph.Subgraph() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

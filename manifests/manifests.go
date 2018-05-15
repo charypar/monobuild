@@ -152,3 +152,19 @@ func Filter(dependencies map[string][]Dependency, kind Kind) map[string][]string
 
 	return result
 }
+
+// FilterComponents filters a list of files to components
+func FilterComponents(components []string, changedFiles []string) []string {
+	changedComponents := []string{}
+
+	for _, component := range components {
+		for _, change := range changedFiles {
+			if strings.HasPrefix(change, component) {
+				changedComponents = append(changedComponents, component)
+				break
+			}
+		}
+	}
+
+	return changedComponents
+}

@@ -7,7 +7,7 @@ type Graph struct {
 	edges map[string]set.Set
 }
 
-// New creates a new Graph from a map of vertex to vertex label describing the edges
+// New creates a new Graph from a map of vertex -> vertex label that describes the edges
 func New(edges map[string][]string) Graph {
 	edgs := make(map[string]set.Set)
 
@@ -74,6 +74,29 @@ func (g Graph) Reverse() Graph {
 	}
 
 	return Graph{edges}
+}
+
+// Subgraph filters the graph to only the nodes listed
+func (g Graph) Subgraph(nodes []string) Graph {
+	nodeSet := set.New(nodes)
+	filtered := make(map[string]set.Set, len(g.edges))
+
+	for v, es := range g.edges {
+		if !nodeSet.Has(v) {
+			continue
+		}
+
+		filtered[v] = set.New([]string{})
+		for _, e := range es.AsStrings() {
+			if !nodeSet.Has(e) {
+				continue
+			}
+
+			filtered[v].Add(e)
+		}
+	}
+
+	return Graph{filtered}
 }
 
 // AsStrings returns the graph as a map[string][]string

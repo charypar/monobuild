@@ -6,6 +6,7 @@ import (
 
 	"github.com/bmatcuk/doublestar"
 	"github.com/charypar/monobuild/diff"
+	"github.com/charypar/monobuild/manifests"
 	"github.com/spf13/cobra"
 )
 
@@ -18,24 +19,50 @@ var diffCmd = &cobra.Command{
 
 var baseBranch string
 var mainBranch bool
+var dotHighlight bool
 
 func init() {
 	rootCmd.AddCommand(diffCmd)
 
 	diffCmd.Flags().StringVar(&baseBranch, "base-branch", "master", "Base branch to use for comparison")
 	diffCmd.Flags().BoolVar(&mainBranch, "main-branch", false, "Run in main branch mode (i.e. only compare with parent commit)")
+	diffCmd.Flags().BoolVar(&dotFormat, "dot", false, "Print in DOT format for GraphViz")
+	diffCmd.Flags().BoolVar(&dotHighlight, "dot-highlight", false, "Print in DOT format highlighting changed nodes rather than omitting the unchanged ones")
 }
 
 func diffFn(cmd *cobra.Command, args []string) {
-	paths, err := doublestar.Glob(dependencyFilesGlob)
+	manifestFiles, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
 		panic(fmt.Errorf("Error finding dependency manifests: %s", err))
 	}
 
-	changedPaths, err := diff.Diff(paths, baseBranch, mainBranch)
+	// Get changed files
+	changes, err := diff.ChangedFiles(mainBranch, baseBranch)
+	if err != nil {
+		panic(fmt.Errorf("cannot find changes: %s", err))
+	}
+
+	// Find components and dependency manifests
+	components, dependencies, errs := manifests.Read(manifestFiles, true)
+	if errs != nil {
+		errstrings := make([]string, len(errs))
+		for i, e := range errs {
+			errstrings[i] = string(e.Error())
+		}
+
+		panic(fmt.Errorf("cannot load dependencies:\n%s", strings.Join(errstrings, "\n")))
+	}
+
+	// Reduce changed files to components
+	changedComponents := manifests.FilterComponents(components, changes)
+
+	// Calculate build schedule
+	buildSchedule, err := diff.Diff(changedComponents, dependencies, baseBranch, mainBranch)
 	if err != nil {
 		panic(fmt.Errorf("Error finding out changed components: %s", err))
 	}
 
-	fmt.Println(strings.Join(changedPaths, "\n"))
+	for c, d := range buildSchedule {
+		fmt.Printf("%s: %s\n", c, strings.Join(d, ", "))
+	}
 }

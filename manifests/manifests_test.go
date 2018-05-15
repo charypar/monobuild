@@ -91,3 +91,123 @@ func Test_Read(t *testing.T) {
 		})
 	}
 }
+
+func Test_Filter(t *testing.T) {
+	type args struct {
+		dependencies map[string][]Dependency
+		kind         Kind
+	}
+	tests := []struct {
+		name string
+		args args
+		want map[string][]string
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Filter(tt.args.dependencies, tt.args.kind); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Filter() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_ReadManifest(t *testing.T) {
+	type args struct {
+		path string
+	}
+	tests := []struct {
+		name  string
+		args  args
+		want  string
+		want1 []Dependency
+		want2 []error
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1, got2 := ReadManifest(tt.args.path)
+			if got != tt.want {
+				t.Errorf("ReadManifest() got = %v, want %v", got, tt.want)
+			}
+			if !reflect.DeepEqual(got1, tt.want1) {
+				t.Errorf("ReadManifest() got1 = %v, want %v", got1, tt.want1)
+			}
+			if !reflect.DeepEqual(got2, tt.want2) {
+				t.Errorf("ReadManifest() got2 = %v, want %v", got2, tt.want2)
+			}
+		})
+	}
+}
+
+func Test_FilterComponents(t *testing.T) {
+	type args struct {
+		components   []string
+		changedFiles []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []string
+	}{
+		{
+			"works with nothing",
+			args{[]string{}, []string{}},
+			[]string{},
+		},
+		{
+			"works with no components",
+			args{[]string{}, []string{"some/file/there.txt"}},
+			[]string{},
+		},
+		{
+			"works with no changes",
+			args{[]string{"component/one"}, []string{}},
+			[]string{},
+		},
+		{
+			"finds a changed component",
+			args{[]string{"component/one", "another"}, []string{"component/one/file/two.txt"}},
+			[]string{"component/one"},
+		},
+		{
+			"handles multiple files in a component",
+			args{
+				[]string{"component/one", "another"},
+				[]string{"component/one/file/one.txt", "component/one/file/two.txt"},
+			},
+			[]string{"component/one"},
+		},
+		{
+			"handles a complex case correctly",
+			args{
+				[]string{
+					"stack",
+					"application-one",
+					"application-two",
+					"libraries/one",
+					"libraries/two",
+				},
+				[]string{
+					"stack/config.json",
+					"application-one/src/public/index.js",
+					"libraries/two/src/index.go",
+				},
+			},
+			[]string{
+				"stack",
+				"application-one",
+				"libraries/two",
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := FilterComponents(tt.args.components, tt.args.changedFiles); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("changedComponents() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

@@ -24,7 +24,7 @@ func diffBase(mainBranch bool, baseBranch string) (string, error) {
 	return strings.TrimRight(string(mergeBase), "\n"), nil
 }
 
-func changedFiles(mainBranch bool, baseBranch string) ([]string, error) {
+func ChangedFiles(mainBranch bool, baseBranch string) ([]string, error) {
 	base, err := diffBase(mainBranch, baseBranch)
 	if err != nil {
 		return []string{}, err
@@ -41,49 +41,15 @@ func changedFiles(mainBranch bool, baseBranch string) ([]string, error) {
 	return changed, nil
 }
 
-func changedComponents(components []string, changedFiles []string) []string {
-	changedComponents := []string{}
+// Diff calculates the build schedule based on the dependencies and changes
+func Diff(changedComponents []string, dependencies map[string][]manifests.Dependency, baseBranch string, mainBranch bool) (map[string][]string, error) {
+	impactGraph := graph.New(manifests.Filter(dependencies, 0)).Reverse()
+	impacted := impactGraph.Descendants(set.New(changedComponents)).AsStrings()
 
-	for _, component := range components {
-		for _, change := range changedFiles {
-			if strings.HasPrefix(change, component) {
-				changedComponents = append(changedComponents, component)
-				break
-			}
-		}
-	}
+	// Construct build schedule
+	fullBuildSchedule := graph.New(manifests.Filter(dependencies, manifests.Strong)).Reverse()
+	buildSchedule := fullBuildSchedule.Subgraph(impacted).AsStrings()
+	// Select
 
-	return changedComponents
-}
-
-// Diff calculates the list of paths that need to be built based on the list of
-func Diff(manifestPaths []string, baseBranch string, mainBranch bool) ([]string, error) {
-	// Find components and dependency manifests
-	components, dependencies, errs := manifests.Read(manifestPaths, true)
-	if errs != nil {
-		errstrings := make([]string, len(errs))
-		for i, e := range errs {
-			errstrings[i] = string(e.Error())
-		}
-
-		return []string{}, fmt.Errorf("cannot load dependencies:\n%s", strings.Join(errstrings, "\n"))
-	}
-
-	// Get changed files
-	changes, err := changedFiles(mainBranch, baseBranch)
-	if err != nil {
-		return []string{}, fmt.Errorf("cannot find changes: %s", err)
-	}
-
-	// Reduce changed files to components
-	chgdComponents := changedComponents(components, changes)
-
-	// Construct build graph
-	dependencyGraph := graph.New(manifests.Filter(dependencies, 0))
-	buildGraph := dependencyGraph.Reverse()
-
-	// Include the dependents
-	componentsToBuild := buildGraph.Descendants(set.New(chgdComponents)).AsStrings()
-
-	return componentsToBuild, nil
+	return buildSchedule, nil
 }
