@@ -15,7 +15,7 @@ test: install
 
 build: install $(GOPATH)/bin/monobuild
 
-~/go/bin/monobuild: ./monobuild.go cmd/*.go diff/*.go graph/*.go set/*.go
+~/go/bin/monobuild: ./monobuild.go cmd/*.go diff/*.go graph/*.go set/*.go output/*.go
 	@go install github.com/charypar/monobuild
 
 # Dependencies

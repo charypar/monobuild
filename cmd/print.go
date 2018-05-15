@@ -2,14 +2,17 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/bmatcuk/doublestar"
 
 	"github.com/charypar/monobuild/graph"
 	"github.com/charypar/monobuild/manifests"
+	"github.com/charypar/monobuild/output"
 	"github.com/spf13/cobra"
 )
+
+var printDependencies bool
+var dotFormat bool
 
 var printCmd = &cobra.Command{
 	Use:   "print",
@@ -18,9 +21,6 @@ var printCmd = &cobra.Command{
 	Run:   printFn,
 }
 
-var printDependencies bool
-var dotFormat bool
-
 func init() {
 	rootCmd.AddCommand(printCmd)
 
@@ -28,67 +28,23 @@ func init() {
 	printCmd.Flags().BoolVar(&dotFormat, "dot", false, "Print in DOT format for GraphViz")
 }
 
-func printText(graph map[string][]string) string {
-	var result string
-
-	for c, d := range graph {
-		result += fmt.Sprintf("%s: %s\n", c, strings.Join(d, ", "))
-	}
-
-	return result
-}
-
-func printDotGraph(dependencies map[string][]manifests.Dependency, graph map[string][]string) string {
-	result := fmt.Sprintln("digraph dependencies {")
-
-	for c, deps := range dependencies {
-		for _, d := range deps {
-			var format string
-
-			if d.Kind == manifests.Weak {
-				format = " [style=dashed]"
-			}
-
-			result += fmt.Sprintf("  \"%s\" -> \"%s\"%s\n", c, d.Name, format)
-		}
-	}
-
-	return result + "}\n"
-}
-
-func printDotSchedule(dependencies map[string][]manifests.Dependency, graph map[string][]string) string {
-	result := fmt.Sprintln("digraph schedule {\n  rankdir=\"LR\"\n  node [shape=box]")
-
-	for c, deps := range graph {
-		if len(deps) < 1 {
-			result += fmt.Sprintf("  \"%s\"\n", c)
-		}
-
-		for _, d := range deps {
-			result += fmt.Sprintf("  \"%s\" -> \"%s\"\n", c, d)
-		}
-	}
-
-	return result + "}\n"
-}
-
 func printGraph(dependencies map[string][]manifests.Dependency, buildSchedule map[string][]string, dependencyGraph map[string][]string) {
 	if dotFormat && printDependencies {
-		fmt.Print(printDotGraph(dependencies, dependencyGraph))
+		fmt.Print(output.Dot(dependencies, dependencyGraph))
 		return
 	}
 
 	if dotFormat {
-		fmt.Print(printDotSchedule(dependencies, buildSchedule))
+		fmt.Print(output.DotSchedule(dependencies, buildSchedule))
 		return
 	}
 
 	if printDependencies {
-		fmt.Print(printText(dependencyGraph))
+		fmt.Print(output.Text(dependencyGraph))
 		return
 	}
 
-	fmt.Print(printText(buildSchedule))
+	fmt.Print(output.Text(buildSchedule))
 }
 
 func printFn(cmd *cobra.Command, args []string) {
@@ -99,10 +55,7 @@ func printFn(cmd *cobra.Command, args []string) {
 
 	_, dependencies, errs := manifests.Read(paths, false)
 	if errs != nil {
-		for _, e := range errs {
-			fmt.Printf("Error: %s\n", e)
-		}
-		fmt.Println("")
+		fmt.Print(joinErrors("cannot load dependencies:", errs))
 	}
 
 	if errs != nil && dotFormat {
