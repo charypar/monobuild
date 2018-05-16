@@ -6,6 +6,7 @@ import (
 
 	"github.com/bmatcuk/doublestar"
 	"github.com/charypar/monobuild/diff"
+	"github.com/charypar/monobuild/graph"
 	"github.com/charypar/monobuild/manifests"
 	"github.com/spf13/cobra"
 )
@@ -71,7 +72,7 @@ func diffFn(cmd *cobra.Command, args []string) {
 	dependencies := deps.AsGraph()
 	impacted := diff.Impacted(changedComponents, dependencies)
 
-	buildSchedule := dependencies.FilterEdges([]int{2})
+	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
 
 	printGraph(dependencies, buildSchedule, impacted)
 }

@@ -71,7 +71,7 @@ func printFn(cmd *cobra.Command, args []string) {
 	dependencies := deps.AsGraph()
 	selection := dependencies.Vertices() // everything
 
-	buildSchedule := dependencies.FilterEdges([]int{2})
+	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
 
 	printGraph(dependencies, buildSchedule, selection)
 }
