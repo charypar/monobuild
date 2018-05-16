@@ -54,7 +54,7 @@ func diffFn(cmd *cobra.Command, args []string) {
 	}
 
 	// Find components and dependency manifests
-	components, dependencies, errs := manifests.Read(manifestFiles, false)
+	components, deps, errs := manifests.Read(manifestFiles, false)
 	if errs != nil {
 		panic(joinErrors("cannot load dependencies:", errs))
 	}
@@ -68,9 +68,11 @@ func diffFn(cmd *cobra.Command, args []string) {
 	// Reduce changed files to components
 	changedComponents := manifests.FilterComponents(components, changes)
 
-	// Calculate build schedule
-	buildSchedule := diff.BuildSchedule(changedComponents, dependencies)
-	dependencyGraph := diff.Dependencies(changedComponents, dependencies)
+	// Find impacted components
+	dependencies := deps.AsGraph()
+	impacted := diff.Impacted(changedComponents, dependencies)
 
-	printGraph(dependencies, buildSchedule, dependencyGraph)
+	buildSchedule := dependencies.FilterEdges([]int{2})
+
+	printGraph(dependencies, buildSchedule, impacted)
 }

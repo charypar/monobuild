@@ -7,7 +7,6 @@ import (
 
 	"github.com/charypar/monobuild/graph"
 	"github.com/charypar/monobuild/manifests"
-	"github.com/charypar/monobuild/output"
 	"github.com/spf13/cobra"
 )
 
@@ -34,23 +33,23 @@ func init() {
 	printCmd.Flags().BoolVar(&dotFormat, "dot", false, "Print in DOT format for GraphViz")
 }
 
-func printGraph(dependencies map[string][]manifests.Dependency, buildSchedule map[string][]string, dependencyGraph map[string][]string) {
+func printGraph(dependencies graph.Graph, schedule graph.Graph, impacted []string) {
 	if dotFormat && printDependencies {
-		fmt.Print(output.Dot(dependencies, dependencyGraph))
+		fmt.Print(dependencies.Dot(impacted))
 		return
 	}
 
 	if dotFormat {
-		fmt.Print(output.DotSchedule(dependencies, buildSchedule))
+		fmt.Print(schedule.DotSchedule(impacted))
 		return
 	}
 
 	if printDependencies {
-		fmt.Print(output.Text(dependencyGraph))
+		fmt.Print(dependencies.Text(impacted))
 		return
 	}
 
-	fmt.Print(output.Text(buildSchedule))
+	fmt.Print(schedule.Text(impacted))
 }
 
 func printFn(cmd *cobra.Command, args []string) {
@@ -59,7 +58,7 @@ func printFn(cmd *cobra.Command, args []string) {
 		panic(fmt.Errorf("Error finding dependency manifests: %s", err))
 	}
 
-	_, dependencies, errs := manifests.Read(paths, false)
+	_, deps, errs := manifests.Read(paths, false)
 	if errs != nil {
 		fmt.Print(joinErrors("cannot load dependencies:", errs))
 	}
@@ -68,8 +67,11 @@ func printFn(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	dependencyGraph := manifests.Filter(dependencies, 0)
-	buildSchedule := graph.New(manifests.Filter(dependencies, 2)).Reverse().AsStrings()
+	// this is somewhat redundant in the print case
+	dependencies := deps.AsGraph()
+	selection := dependencies.Vertices() // everything
 
-	printGraph(dependencies, buildSchedule, dependencyGraph)
+	buildSchedule := dependencies.FilterEdges([]int{2})
+
+	printGraph(dependencies, buildSchedule, selection)
 }
