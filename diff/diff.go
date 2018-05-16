@@ -46,9 +46,10 @@ func ChangedFiles(mainBranch bool, baseBranch string) ([]string, error) {
 func BuildSchedule(changedComponents []string, dependencies map[string][]manifests.Dependency) map[string][]string {
 	impactGraph := graph.New(manifests.Filter(dependencies, 0)).Reverse()
 	impacted := impactGraph.Descendants(set.New(changedComponents)).AsStrings()
+	impacted = append(impacted, changedComponents...)
 
 	// Construct build schedule
-	fullBuildSchedule := graph.New(manifests.Filter(dependencies, manifests.Strong)).Reverse()
+	fullBuildSchedule := graph.New(manifests.Filter(dependencies, manifests.Strong))
 	buildSchedule := fullBuildSchedule.Subgraph(impacted).AsStrings()
 	// Select
 
@@ -59,9 +60,10 @@ func BuildSchedule(changedComponents []string, dependencies map[string][]manifes
 // based on the full dependency graph and the components that changed
 func Dependencies(changedComponents []string, dependencies map[string][]manifests.Dependency) map[string][]string {
 	dependencyGraph := graph.New(manifests.Filter(dependencies, 0))
-
 	impactGraph := dependencyGraph.Reverse()
+
 	impacted := impactGraph.Descendants(set.New(changedComponents)).AsStrings()
+	impacted = append(impacted, changedComponents...)
 
 	impactedDependencies := dependencyGraph.Subgraph(impacted).AsStrings()
 
