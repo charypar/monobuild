@@ -10,9 +10,9 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "monobuild",
 	Short: "A build orchestration tool for Continuous Integration in a monorepo.",
-	Long: `Monobuild is a simple tool that understands a graph of dependencies in
-a monorepo codebase (where separate components live side by side) and
-based on it can decide what should be built, given a set of changes.`,
+	Long: `Read a graph of dependencies in a monorepo codebase (where separate 
+components live side by side) and decide what should be built, given the git 
+history.`,
 }
 
 var dependencyFilesGlob string

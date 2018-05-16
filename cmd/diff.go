@@ -16,9 +16,16 @@ var dotHighlight bool
 
 var diffCmd = &cobra.Command{
 	Use:   "diff",
-	Short: "List changed components",
-	Long:  `List changed components based on git history and dependency graph`,
-	Run:   diffFn,
+	Short: "Build schedule for components affected by git changes",
+	Long: `Create a build schedule based on git history and dependency graph.
+Each line in the output is a component and its dependencies. 
+The format of each line is:
+
+<component>: <dependency>, <dependency>, <dependency>, ...
+
+Diff can output either the build schedule (using only strong dependencies) or 
+the original dependeny graph (using all dependencies).`,
+	Run: diffFn,
 }
 
 func init() {

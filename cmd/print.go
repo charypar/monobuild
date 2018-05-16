@@ -16,9 +16,15 @@ var dotFormat bool
 
 var printCmd = &cobra.Command{
 	Use:   "print",
-	Short: "print the build schedule",
-	Long:  `Read the dependency graph from dependency manifests, check all dependencies exist and print the build schedule`,
-	Run:   printFn,
+	Short: "Print the full build schedule or dependency graph",
+	Long: `Print the full build schedule or dependency graph based on the manifest files.
+The format of each line is:
+
+<component>: <dependency>, <dependency>, <dependency>, ...
+
+Diff can output either the build schedule (using only strong dependencies) or 
+the original dependeny graph (using all dependencies).`,
+	Run: printFn,
 }
 
 func init() {
