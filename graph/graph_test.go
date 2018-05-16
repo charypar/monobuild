@@ -143,17 +143,17 @@ func TestGraph_Reverse(t *testing.T) {
 		{
 			"reverses a single edge",
 			New(map[string][]string{"a": []string{"b"}}),
-			New(map[string][]string{"b": []string{"a"}}),
+			New(map[string][]string{"a": []string{}, "b": []string{"a"}}),
 		},
 		{
 			"reverses a fan of edges",
 			New(map[string][]string{"a": []string{"b", "c", "d"}}),
-			New(map[string][]string{"b": []string{"a"}, "c": []string{"a"}, "d": []string{"a"}}),
+			New(map[string][]string{"a": []string{}, "b": []string{"a"}, "c": []string{"a"}, "d": []string{"a"}}),
 		},
 		{
 			"reverses a complex graph",
 			New(map[string][]string{"a": []string{"b", "c"}, "b": []string{"d"}, "c": []string{"d"}}),
-			New(map[string][]string{"b": []string{"a"}, "c": []string{"a"}, "d": []string{"b", "c"}}),
+			New(map[string][]string{"a": []string{}, "b": []string{"a"}, "c": []string{"a"}, "d": []string{"b", "c"}}),
 		},
 	}
 	for _, tt := range tests {
@@ -166,7 +166,6 @@ func TestGraph_Reverse(t *testing.T) {
 }
 
 func TestGraph_Subgraph(t *testing.T) {
-
 	tests := []struct {
 		name  string
 		graph Graph
@@ -222,6 +221,77 @@ func TestGraph_Subgraph(t *testing.T) {
 
 			if got := tt.graph.Subgraph(tt.nodes); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Graph.Subgraph() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGraph_AsStrings(t *testing.T) {
+	tests := []struct {
+		name  string
+		graph Graph
+		want  map[string][]string
+	}{
+		{
+			"returns an empty graph",
+			New(map[string][]string{}),
+			map[string][]string{},
+		},
+		{
+			"returns a non-empty graph",
+			New(map[string][]string{"a": []string{"b"}}),
+			map[string][]string{
+				"a": []string{"b"},
+				"b": []string{},
+			},
+		},
+		{
+			"sorts edges",
+			New(map[string][]string{"a": []string{"c", "b"}}),
+			map[string][]string{
+				"a": []string{"b", "c"},
+				"b": []string{},
+				"c": []string{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := tt.graph.AsStrings(); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Graph.AsStrings() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestNew(t *testing.T) {
+	type args struct {
+	}
+	tests := []struct {
+		name  string
+		edges map[string][]string
+		want  Graph
+	}{
+		{
+			"creates an empty graph",
+			map[string][]string{},
+			Graph{edges: map[string]set.Set{}},
+		},
+		{
+			"normalises the graph adding nodes that don't have dependencies",
+			map[string][]string{
+				"a": []string{"b"},
+			},
+			Graph{edges: map[string]set.Set{
+				"a": set.New([]string{"b"}),
+				"b": set.New([]string{}),
+			}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := New(tt.edges); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("New() = %v, want %v", got, tt.want)
 			}
 		})
 	}

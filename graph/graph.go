@@ -1,6 +1,10 @@
 package graph
 
-import "github.com/charypar/monobuild/set"
+import (
+	"sort"
+
+	"github.com/charypar/monobuild/set"
+)
 
 // Graph is a DAG with string labeled vertices
 type Graph struct {
@@ -9,17 +13,23 @@ type Graph struct {
 
 // New creates a new Graph from a map of vertex -> vertex label that describes the edges
 func New(edges map[string][]string) Graph {
-	edgs := make(map[string]set.Set)
+	graph := make(map[string]set.Set)
 
 	for v, es := range edges {
-		edgs[v] = set.New([]string{})
+		graph[v] = set.New([]string{})
 
 		for _, e := range es {
-			edgs[v].Add(e)
+			graph[v].Add(e)
+
+			// Normalise the graph - every node is a key in the map
+			_, ok := graph[e]
+			if !ok {
+				graph[e] = set.New([]string{})
+			}
 		}
 	}
 
-	return Graph{edgs}
+	return Graph{graph}
 }
 
 // Children returns the vertices that are connected to given vertices with an edge
@@ -78,17 +88,17 @@ func (g Graph) Reverse() Graph {
 
 // Subgraph filters the graph to only the nodes listed
 func (g Graph) Subgraph(nodes []string) Graph {
-	nodeSet := set.New(nodes)
+	filter := set.New(nodes)
 	filtered := make(map[string]set.Set, len(g.edges))
 
 	for v, es := range g.edges {
-		if !nodeSet.Has(v) {
+		if !filter.Has(v) {
 			continue
 		}
 
 		filtered[v] = set.New([]string{})
 		for _, e := range es.AsStrings() {
-			if !nodeSet.Has(e) {
+			if !filter.Has(e) {
 				continue
 			}
 
@@ -104,7 +114,10 @@ func (g Graph) AsStrings() map[string][]string {
 	result := make(map[string][]string, len(g.edges))
 
 	for v, es := range g.edges {
-		result[v] = es.AsStrings()
+		sorted := es.AsStrings()
+		sort.Strings(sorted)
+
+		result[v] = sorted
 	}
 
 	return result
