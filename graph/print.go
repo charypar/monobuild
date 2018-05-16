@@ -8,11 +8,11 @@ import (
 	"github.com/charypar/monobuild/set"
 )
 
-// Solid line
-var Solid = 1
+// Weak shows as a dashed line
+var Weak = 1
 
-// Dashed line
-var Dashed = 2
+// Strong shows as solid line
+var Strong = 2
 
 // Text returns graph as text suitable for output
 func (g Graph) Text(selection []string) string {
@@ -83,7 +83,7 @@ func (g Graph) Dot(selection []string) string {
 			}
 
 			var format string
-			if d.Colour == int(Dashed) {
+			if d.Colour == Weak {
 				format = " [style=dashed]"
 			}
 

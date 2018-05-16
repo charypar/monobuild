@@ -5,11 +5,11 @@ import (
 )
 
 var exampleDependencies = New(map[string][]Edge{
-	"a": []Edge{{Label: "b", Colour: Dashed}, {Label: "c", Colour: Dashed}},
-	"b": []Edge{{Label: "c", Colour: Dashed}},
+	"a": []Edge{{Label: "b", Colour: Weak}, {Label: "c", Colour: Weak}},
+	"b": []Edge{{Label: "c", Colour: Weak}},
 	"c": []Edge{},
-	"d": []Edge{{Label: "a", Colour: Solid}},
-	"e": []Edge{{Label: "a", Colour: Solid}, {Label: "b", Colour: Solid}},
+	"d": []Edge{{Label: "a", Colour: Strong}},
+	"e": []Edge{{Label: "a", Colour: Strong}, {Label: "b", Colour: Strong}},
 })
 
 func TestText(t *testing.T) {
