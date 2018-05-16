@@ -35,7 +35,6 @@ func init() {
 	diffCmd.Flags().BoolVar(&mainBranch, "main-branch", false, "Run in main branch mode (i.e. only compare with parent commit)")
 	diffCmd.Flags().BoolVar(&printDependencies, "dependencies", false, "Ouput the dependencies, not the build schedule")
 	diffCmd.Flags().BoolVar(&dotFormat, "dot", false, "Print in DOT format for GraphViz")
-	diffCmd.Flags().BoolVar(&dotHighlight, "dot-highlight", false, "Print in DOT format highlighting changed nodes rather than omitting the unchanged ones")
 }
 
 func joinErrors(message string, errors []error) error {
