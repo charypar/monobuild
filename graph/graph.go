@@ -90,16 +90,24 @@ func (g Graph) Descendants(vertices []string) []string {
 func (g Graph) Reverse() Graph {
 	edges := make(map[string]Edges)
 
-	for v, es := range g.edges {
+	// loop over the map keys deterministically
+	sorted := make([]string, 0, len(g.edges))
+	for v := range g.edges {
+		sorted = append(sorted, v)
+	}
+	sort.Strings(sorted)
+
+	// here
+	for _, v := range sorted {
 		_, ok := edges[v]
 		if !ok {
 			edges[v] = Edges{}
 		}
 
-		for _, e := range es {
+		for _, e := range g.edges[v] {
 			_, ok := edges[e.Label]
 			if !ok {
-				edges[e.Label] = make(Edges, 0, len(es))
+				edges[e.Label] = Edges{}
 			}
 
 			edges[e.Label] = append(edges[e.Label], Edge{v, e.Colour})
