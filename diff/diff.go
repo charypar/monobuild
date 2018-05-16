@@ -3,11 +3,10 @@ package diff
 import (
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/charypar/monobuild/graph"
-	"github.com/charypar/monobuild/manifests"
-	"github.com/charypar/monobuild/set"
 )
 
 func diffBase(mainBranch bool, baseBranch string) (string, error) {
@@ -24,6 +23,10 @@ func diffBase(mainBranch bool, baseBranch string) (string, error) {
 	return strings.TrimRight(string(mergeBase), "\n"), nil
 }
 
+// ChangedFiles uses git to determine the list of files that changed for
+// the current revision.
+// It can operate in a normal (branch) mode, where it compares to a 'baseBranch',
+// or a 'mainBranch' mode, where it compares to the previous revision
 func ChangedFiles(mainBranch bool, baseBranch string) ([]string, error) {
 	base, err := diffBase(mainBranch, baseBranch)
 	if err != nil {
@@ -41,31 +44,13 @@ func ChangedFiles(mainBranch bool, baseBranch string) ([]string, error) {
 	return changed, nil
 }
 
-// BuildSchedule calculates the build schedule based on the dependency graph and
-// the list of components that changed
-func BuildSchedule(changedComponents []string, dependencies map[string][]manifests.Dependency) map[string][]string {
-	impactGraph := graph.New(manifests.Filter(dependencies, 0)).Reverse()
-	impacted := impactGraph.Descendants(set.New(changedComponents)).AsStrings()
-	impacted = append(impacted, changedComponents...)
+// Impacted calculates the list of changes impacted by a change
+func Impacted(changedComponents []string, dependencies graph.Graph) []string {
+	impactGraph := dependencies.Reverse()
+	impacted := impactGraph.Descendants(changedComponents)
 
-	// Construct build schedule
-	fullBuildSchedule := graph.New(manifests.Filter(dependencies, manifests.Strong))
-	buildSchedule := fullBuildSchedule.Subgraph(impacted).AsStrings()
-	// Select
+	result := append(impacted, changedComponents...)
+	sort.Strings(result)
 
-	return buildSchedule
-}
-
-// Dependencies calculates the dependency graph off the affected components
-// based on the full dependency graph and the components that changed
-func Dependencies(changedComponents []string, dependencies map[string][]manifests.Dependency) map[string][]string {
-	dependencyGraph := graph.New(manifests.Filter(dependencies, 0))
-	impactGraph := dependencyGraph.Reverse()
-
-	impacted := impactGraph.Descendants(set.New(changedComponents)).AsStrings()
-	impacted = append(impacted, changedComponents...)
-
-	impactedDependencies := dependencyGraph.Subgraph(impacted).AsStrings()
-
-	return impactedDependencies
+	return result
 }

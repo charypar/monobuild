@@ -4,34 +4,34 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/charypar/monobuild/manifests"
+	"github.com/charypar/monobuild/graph"
 )
 
-func TestBuildSchedule(t *testing.T) {
-	exampleDependencies := map[string][]manifests.Dependency{
-		"a": []manifests.Dependency{{Name: "b", Kind: manifests.Weak}, {Name: "c", Kind: manifests.Weak}},
-		"b": []manifests.Dependency{{Name: "c", Kind: manifests.Weak}},
-		"c": []manifests.Dependency{},
-		"d": []manifests.Dependency{{Name: "a", Kind: manifests.Strong}},
-		"e": []manifests.Dependency{{Name: "a", Kind: manifests.Strong}, {Name: "b", Kind: manifests.Strong}},
-	}
+func Test_Impacted(t *testing.T) {
+	exampleDependencies := graph.New(map[string][]graph.Edge{
+		"a": []graph.Edge{{Label: "b", Colour: graph.Weak}, {Label: "c", Colour: graph.Weak}},
+		"b": []graph.Edge{{Label: "c", Colour: graph.Weak}},
+		"c": []graph.Edge{},
+		"d": []graph.Edge{{Label: "a", Colour: graph.Strong}},
+		"e": []graph.Edge{{Label: "a", Colour: graph.Strong}, {Label: "b", Colour: graph.Strong}},
+	})
 
 	type args struct {
 		changedComponents []string
-		dependencies      map[string][]manifests.Dependency
+		dependencies      graph.Graph
 	}
 	tests := []struct {
 		name string
 		args args
-		want map[string][]string
+		want []string
 	}{
 		{
 			"works with empty changes",
 			args{
-				[]string{""},
+				[]string{},
 				exampleDependencies,
 			},
-			map[string][]string{},
+			[]string{},
 		},
 		{
 			"collects affected strong dependencies",
@@ -39,73 +39,7 @@ func TestBuildSchedule(t *testing.T) {
 				[]string{"a"},
 				exampleDependencies,
 			},
-			map[string][]string{
-				"a": []string{},
-				"d": []string{"a"},
-				"e": []string{"a"},
-			},
-		},
-		{
-			"collects all affected dependencies, keeps strong",
-			args{
-				[]string{"c"},
-				exampleDependencies,
-			},
-			map[string][]string{
-				"a": []string{},
-				"b": []string{},
-				"c": []string{},
-				"d": []string{"a"},
-				"e": []string{"a", "b"},
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := BuildSchedule(tt.args.changedComponents, tt.args.dependencies); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("BuildSchedule() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestDependencies(t *testing.T) {
-	exampleDependencies := map[string][]manifests.Dependency{
-		"a": []manifests.Dependency{{Name: "b", Kind: manifests.Weak}, {Name: "c", Kind: manifests.Weak}},
-		"b": []manifests.Dependency{{Name: "c", Kind: manifests.Weak}},
-		"c": []manifests.Dependency{},
-		"d": []manifests.Dependency{{Name: "a", Kind: manifests.Strong}},
-		"e": []manifests.Dependency{{Name: "a", Kind: manifests.Strong}, {Name: "b", Kind: manifests.Strong}},
-	}
-
-	type args struct {
-		changedComponents []string
-		dependencies      map[string][]manifests.Dependency
-	}
-	tests := []struct {
-		name string
-		args args
-		want map[string][]string
-	}{
-		{
-			"works with empty changes",
-			args{
-				[]string{""},
-				exampleDependencies,
-			},
-			map[string][]string{},
-		},
-		{
-			"collects affected strong dependencies",
-			args{
-				[]string{"a"},
-				exampleDependencies,
-			},
-			map[string][]string{
-				"a": []string{},
-				"d": []string{"a"},
-				"e": []string{"a"},
-			},
+			[]string{"a", "d", "e"},
 		},
 		{
 			"collects all affected dependencies",
@@ -113,18 +47,13 @@ func TestDependencies(t *testing.T) {
 				[]string{"c"},
 				exampleDependencies,
 			},
-			map[string][]string{
-				"a": []string{"b", "c"},
-				"b": []string{"c"},
-				"c": []string{},
-				"d": []string{"a"},
-				"e": []string{"a", "b"},
-			},
+			[]string{"a", "b", "c", "d", "e"},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := Dependencies(tt.args.changedComponents, tt.args.dependencies); !reflect.DeepEqual(got, tt.want) {
+			if got := Impacted(tt.args.changedComponents, tt.args.dependencies); !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Dependencies() = %v, want %v", got, tt.want)
 			}
 		})
