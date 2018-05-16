@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/charypar/monobuild/graph"
 )
 
 // Kind of the dependency (enum)
@@ -25,6 +27,10 @@ var Strong Kind = 2
 type Dependency struct {
 	Name string
 	Kind Kind
+}
+
+type Dependencies struct {
+	deps map[string][]Dependency
 }
 
 func validDependency(components []string, dependency Dependency) bool {
@@ -93,7 +99,7 @@ func ReadManifest(path string) (string, []Dependency, []error) {
 }
 
 // Read manifests at manifestPaths and return a graph of dependencies
-func Read(manifestPaths []string, dependOnSelf bool) ([]string, map[string][]Dependency, []error) {
+func Read(manifestPaths []string, dependOnSelf bool) ([]string, Dependencies, []error) {
 	dependencies := make(map[string][]Dependency, len(manifestPaths))
 	components := make([]string, 0)
 	errors := []error{}
@@ -123,34 +129,10 @@ func Read(manifestPaths []string, dependOnSelf bool) ([]string, map[string][]Dep
 	}
 
 	if len(errors) > 0 {
-		return nil, nil, errors
+		return nil, Dependencies{}, errors
 	}
 
-	return components, dependencies, nil
-}
-
-// Filter the dependencies returned by Read to only strong or only weak
-func Filter(dependencies map[string][]Dependency, kind Kind) map[string][]string {
-	result := make(map[string][]string, len(dependencies))
-
-	for c, deps := range dependencies {
-		rdeps := make([]string, 0, len(deps))
-
-		for _, d := range deps {
-			if kind == 0 {
-				rdeps = append(rdeps, d.Name)
-				continue
-			}
-
-			if d.Kind == kind {
-				rdeps = append(rdeps, d.Name)
-			}
-		}
-
-		result[c] = rdeps
-	}
-
-	return result
+	return components, Dependencies{dependencies}, nil
 }
 
 // FilterComponents filters a list of files to components
@@ -167,4 +149,19 @@ func FilterComponents(components []string, changedFiles []string) []string {
 	}
 
 	return changedComponents
+}
+
+// AsGraph returns the dependencies as a graph.Graph
+func (d Dependencies) AsGraph() graph.Graph {
+	result := make(map[string][]graph.Edge, len(d.deps))
+
+	for c, ds := range d.deps {
+		result[c] = make([]graph.Edge, 0, len(ds))
+
+		for _, d := range ds {
+			result[c] = append(result[c], graph.Edge{d.Name, int(d.Kind)})
+		}
+	}
+
+	return graph.New(result)
 }
