@@ -27,7 +27,7 @@ func Test_Read(t *testing.T) {
 		cwd     string
 		pattern string
 		want    []string
-		want1   map[string][]Dependency
+		want1   Dependencies
 		wantErr bool
 	}{
 		{
@@ -44,7 +44,7 @@ func Test_Read(t *testing.T) {
 				"libs/lib3",
 				"stack1",
 			},
-			map[string][]Dependency{
+			Dependencies{deps: map[string][]Dependency{
 				"app1":      []Dependency{{"app1", Weak}, {"libs/lib1", Weak}, {"libs/lib2", Weak}},
 				"app2":      []Dependency{{"app2", Weak}, {"libs/lib2", Weak}, {"libs/lib3", Weak}},
 				"app3":      []Dependency{{"app3", Weak}, {"libs/lib3", Weak}},
@@ -53,7 +53,7 @@ func Test_Read(t *testing.T) {
 				"libs/lib2": []Dependency{{"libs/lib2", Weak}, {"libs/lib3", Weak}},
 				"libs/lib3": []Dependency{{"libs/lib3", Weak}},
 				"stack1":    []Dependency{{"stack1", Weak}, {"app1", Strong}, {"app2", Strong}, {"app3", Strong}},
-			},
+			}},
 			false,
 		},
 		{
@@ -61,7 +61,7 @@ func Test_Read(t *testing.T) {
 			"../test/fixtures/bad-manifests",
 			"**/Dependencies",
 			nil,
-			nil,
+			Dependencies{},
 			true,
 		},
 	}
@@ -87,27 +87,6 @@ func Test_Read(t *testing.T) {
 			}
 			if !reflect.DeepEqual(got1, tt.want1) {
 				t.Errorf("Read() got1 = %#v, want %#v", got1, tt.want1)
-			}
-		})
-	}
-}
-
-func Test_Filter(t *testing.T) {
-	type args struct {
-		dependencies map[string][]Dependency
-		kind         Kind
-	}
-	tests := []struct {
-		name string
-		args args
-		want map[string][]string
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := Filter(tt.args.dependencies, tt.args.kind); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("Filter() = %v, want %v", got, tt.want)
 			}
 		})
 	}

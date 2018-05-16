@@ -159,6 +159,7 @@ func (d Dependencies) AsGraph() graph.Graph {
 		result[c] = make([]graph.Edge, 0, len(ds))
 
 		for _, d := range ds {
+			// FIXME there should really be a mapping of kind to colour
 			result[c] = append(result[c], graph.Edge{d.Name, int(d.Kind)})
 		}
 	}
