@@ -79,7 +79,7 @@ func TestDot(t *testing.T) {
 			exampleDependencies,
 			[]string{"a"},
 			`digraph dependencies {
-  node "a"
+  "a"
 }
 `,
 		},
@@ -89,7 +89,7 @@ func TestDot(t *testing.T) {
 			[]string{"a", "b"},
 			`digraph dependencies {
   "a" -> "b" [style=dashed]
-  node "b"
+  "b"
 }
 `,
 		},
@@ -98,7 +98,7 @@ func TestDot(t *testing.T) {
 			exampleDependencies,
 			[]string{"a", "d"},
 			`digraph dependencies {
-  node "a"
+  "a"
   "d" -> "a"
 }
 `,
@@ -111,7 +111,7 @@ func TestDot(t *testing.T) {
   "a" -> "b" [style=dashed]
   "a" -> "c" [style=dashed]
   "b" -> "c" [style=dashed]
-  node "c"
+  "c"
   "d" -> "a"
 }
 `,

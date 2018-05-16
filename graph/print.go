@@ -74,7 +74,7 @@ func (g Graph) Dot(selection []string) string {
 		}
 
 		if noDeps {
-			result += fmt.Sprintf("  node \"%s\"\n", c)
+			result += fmt.Sprintf("  \"%s\"\n", c)
 		}
 
 		for _, d := range deps {
