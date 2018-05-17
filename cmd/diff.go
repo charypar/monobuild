@@ -35,10 +35,10 @@ func init() {
 }
 
 func diffFn(cmd *cobra.Command, args []string) {
-	out, err := cli.Diff(dependencyFilesGlob, mainBranch, baseBranch, dotFormat, printDependencies)
+	dependencies, schedule, impacted, err := cli.Diff(dependencyFilesGlob, mainBranch, baseBranch, dotFormat, printDependencies)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Print(out)
+	fmt.Print(cli.Format(dependencies, schedule, impacted, dotFormat, printDependencies))
 }

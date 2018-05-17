@@ -19,7 +19,7 @@ func joinErrors(message string, errors []error) error {
 	return fmt.Errorf("%s\n%s", message, strings.Join(errstrings, "\n"))
 }
 
-func printGraph(dependencies graph.Graph, schedule graph.Graph, impacted []string, dotFormat bool, printDependencies bool) string {
+func Format(dependencies graph.Graph, schedule graph.Graph, impacted []string, dotFormat bool, printDependencies bool) string {
 	if dotFormat && printDependencies {
 		return dependencies.Dot(impacted)
 	}
@@ -36,15 +36,15 @@ func printGraph(dependencies graph.Graph, schedule graph.Graph, impacted []strin
 }
 
 // Print is 'monobuild print'
-func Print(dependencyFilesGlob string, dotFormat bool, printDependencies bool) (string, error) {
+func Print(dependencyFilesGlob string, dotFormat bool, printDependencies bool) (graph.Graph, graph.Graph, []string, error) {
 	paths, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
-		return "", fmt.Errorf("Error finding dependency manifests: %s", err)
+		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Error finding dependency manifests: %s", err)
 	}
 
 	_, deps, errs := manifests.Read(paths, false)
 	if errs != nil {
-		return "", fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
+		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
 	}
 
 	dependencies := deps.AsGraph()
@@ -52,26 +52,26 @@ func Print(dependencyFilesGlob string, dotFormat bool, printDependencies bool) (
 
 	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
 
-	return printGraph(dependencies, buildSchedule, selection, dotFormat, printDependencies), nil
+	return dependencies, buildSchedule, selection, nil
 }
 
 // Diff is 'monobuild diff'
-func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, dotFormat bool, printDependencies bool) (string, error) {
+func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, dotFormat bool, printDependencies bool) (graph.Graph, graph.Graph, []string, error) {
 	manifestFiles, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
-		return "", fmt.Errorf("error finding dependency manifests: %s", err)
+		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("error finding dependency manifests: %s", err)
 	}
 
 	// Find components and dependency manifests
 	components, deps, errs := manifests.Read(manifestFiles, false)
 	if errs != nil {
-		return "", fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
+		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
 	}
 
 	// Get changed files
 	changes, err := diff.ChangedFiles(mainBranch, baseBranch)
 	if err != nil {
-		return "", fmt.Errorf("cannot find changes: %s", err)
+		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("cannot find changes: %s", err)
 	}
 
 	// Reduce changed files to components
@@ -83,5 +83,5 @@ func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, dotFor
 
 	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
 
-	return printGraph(dependencies, buildSchedule, impacted, dotFormat, printDependencies), nil
+	return dependencies, buildSchedule, impacted, nil
 }

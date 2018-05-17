@@ -31,10 +31,10 @@ func init() {
 }
 
 func printFn(cmd *cobra.Command, args []string) {
-	output, err := cli.Print(dependencyFilesGlob, dotFormat, printDependencies)
+	dependencies, schedule, impacted, err := cli.Print(dependencyFilesGlob, dotFormat, printDependencies)
 	if err != nil {
 		panic(err)
 	}
 
-	fmt.Print(output)
+	fmt.Print(cli.Format(dependencies, schedule, impacted, dotFormat, printDependencies))
 }
