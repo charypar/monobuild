@@ -8,16 +8,125 @@ is fully implemented.
 ## About
 
 Monobuild is a simple tool that understands a graph of dependencies in
-a monorepo codebase (where separate components live side by side) and
-based on it can decide what should be built, given a set of changes.
+a monorepo codebase (where separate components live side by side in folders)
+and based on it, it can decide what should be built, given a set of changes.
 
 For help, run
 
 ```sh
-$ mb --help
+$ monobuild help
 ```
 
-It can do three basic things
+## Usage
+
+Monobuild constructs the dependency graph from dependency manifests. By
+default, manifests are files named `Dependencies`, which contain a simple
+line-by-line list of dependencies for the component in the directory of the
+file.
+
+### Declare dependencies
+
+An example manifest in `app1/Dependencies` might look like this
+
+```
+# Content
+!data/content
+!shared/images
+
+# Libs
+common-lib
+libs/date-time
+```
+
+Monobuild will ignore any empty lines and lines starting with `#`. Every other
+line is considered a dependency and is a path relative to current working
+directory (typically repository root). Monobuild will expect a dependency
+manifest (possibly empty) to be present at that path.
+
+Lines starting with `!` are strong dependencies all other dependencies are
+considered weak. The difference is in the way the dependency graph is translated
+to a build schedule.
+
+One of the benefits of a monorepo, is components and services can be built from
+code, including their dependencies. Changing a weak dependency of a component
+means a change to the component, which therefore needs to be rebuilt, but the
+builds can be run in parallel. Output or result of the dependency does not
+affect the build of this component.
+
+A strong dependency has to successfully build first, in order for the build of
+the component to be possible. If the dependency build fails, the component
+build does not even start.
+
+Typically, services are built from source, including their libraries, so the
+dependencies on libraries are weak (we still want to run the library build to
+run tests and get a result though). Deploying orchestrations of services
+typically has a strong dependency on the service builds (as they produce
+artifacts, e.g. docker images, needed by the deployment).
+
+### Visualise dependency graph and build schedule
+
+To better understand the dependency graphs and build schedules, Monobuild can
+print them.
+
+```sh
+$ monobuild print
+```
+
+will print the build schedule, which will ignore weak dependencies
+
+```sh
+$ cd test/fixtures/manifests-test
+$ monobuild print
+app4:
+libs/lib1:
+libs/lib2:
+libs/lib3:
+stack1: app1, app2, app3
+app1:
+app2:
+app3:
+```
+
+You can also print the dependency structure with one component per line. For example
+
+```sh
+$ cd test/fixtures/manifests-test
+$ monobuild print --dependencies
+app4:
+libs/lib1: libs/lib3
+libs/lib2: libs/lib3
+libs/lib3:
+stack1: app1, app2, app3
+app1: libs/lib1, libs/lib2
+app2: libs/lib2, libs/lib3
+app3: libs/lib3
+```
+
+Print also supports graphical output using GraphViz
+
+```
+$ cd test/fixtures/manifests-test
+$ monobuild print --dot
+```
+
+to produce a PDF, you can pipe the output into the `dot` tool:
+
+```
+$ cd test/fixtures/manifests-test
+$ monobuild print --dependencies --dot | dot -Tpdf -o dependencies.pdf
+digraph dependencies {
+  "app1" -> "libs/lib1"
+  "app1" -> "libs/lib2"
+  "app2" -> "libs/lib2"
+  "app2" -> "libs/lib3"
+  "app3" -> "libs/lib3"
+  "libs/lib1" -> "libs/lib3"
+  "libs/lib2" -> "libs/lib3"
+  "stack1" -> "app1"
+  "stack1" -> "app2"
+  "stack1" -> "app3"
+}
+```
 
 ### Change detection
 
@@ -25,26 +134,14 @@ If the current directory is a git repository, monobuild can decide which
 components changed (using git).
 
 ```sh
-$ mb diff
+$ monobuild diff
 app2
 app2
 lib3
 ```
 
-To decide which paths are a component, `monobuild` looks for files
-named `Dependencies`, which contain a simple line-by-line list of
-dependencies for a given component. Each line is an asbolute path
-in the repository (and there should be a `Dependencies` file on that path).
-
-You can override the search pattern with the `--dependency-files`. The pattern
-supports the same glob rules as the `find` command.
-
-```sh
-$ mb diff --dependency-files **/Dependencies
-```
-
-Monobuild assumes use of [Mainline Development]() and changes are detected
-in two modes:
+Monobuild assumes use of [Mainline Development](https://gitversion.readthedocs.io/en/latest/reference/mainline-development/)
+and changes are detected in two modes:
 
 1.  for a feature branch, the change detection is equivalent to
 
@@ -53,16 +150,16 @@ in two modes:
     ```
 
     in other words, list all the changes that happened since the current branch
-    was cut from `origin/master`.
+    was cut from `master`.
 
     This is the default mode and the base branch is `master` by default.
     You can override this with
 
     ```sh
-    $ mb diff --base-branch origin/master
+    $ monobuild diff --base-branch develop
     ```
 
-2.  for a master branch (or other main branch) the change detection is equivalent
+2.  for a `master` branch (or other main branch) the change detection is equivalent
     to
 
     ```sh
@@ -72,45 +169,44 @@ in two modes:
     To work in the main-branch mode, use the `--main-branch` flag
 
     ```sh
-    $ mb diff --main-branch
+    $ monobuild diff --main-branch
     ```
 
-### Walking the dependency graph
-
-The main difference between the above `git diff`s and `mb diff` is the
+The main difference between the above `git diff`s and `monobuild diff` is the
 dependency graph awareness.
 
-Monobuild will start with the list from git diff, filter it down to known
+Monobuild will start with the list from `git diff`, filter it down to known
 components, and then extend it with all components that depend on any of the
-components in the initial list, including transitive dependencies. The dependency
-graph is built from the `Dependencies` files.
+components in the initial list, including transitive dependencies.
 
-You can validate and print the dependency graph with
+For the resulting "to do" list, `diff` will then build a build schedule using the
+strong dependencies.
 
-```sh
-$ mb validate
+You can print the relevant part of the dependency graph (rather than
+the build schedule) with `--dependencies`
+
+```
+$ monobuild diff --dependencies
 ```
 
-Like all commands, print also takes `--dependency-files` flag
+Both modes also support DOT output with `--dot`. You can also print
+the entire graph with the affected components with `--dot-highlight`.
 
-```sh
-$ mb validate --dependency-files **/Dependencies
-```
+### Override the manifest matching
+
+If you want to use a different filename for the manifest files, you can do so
+using the global `--manifests` flag.
 
 ### Creating a Makefile
 
 Monobuild can also generate a `Makefile`, that can be used by individual
-component builds to assemble themselves. The make dependency graph is
-the same graph as the one used to decide what should build (except the edges
-are reversed).
+component builds to build their dependencies.
 
 You can generate the makefile with
 
 ```sh
-$ mb makefile
+$ monobuild makefile
 ```
-
-The command supports the `--dependency-files` flag the same way `diff` does.
 
 The resulting Makefile consists of targets like this:
 
@@ -131,3 +227,6 @@ build:
   # steps to make the component available as a dependency of others
   # this could be empty
 ```
+
+You can also override the build command (`make build` by default) with the
+`--build-command` flag.

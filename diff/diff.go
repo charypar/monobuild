@@ -3,11 +3,10 @@ package diff
 import (
 	"fmt"
 	"os/exec"
+	"sort"
 	"strings"
 
 	"github.com/charypar/monobuild/graph"
-	"github.com/charypar/monobuild/manifests"
-	"github.com/charypar/monobuild/set"
 )
 
 func diffBase(mainBranch bool, baseBranch string) (string, error) {
@@ -18,13 +17,17 @@ func diffBase(mainBranch bool, baseBranch string) (string, error) {
 	gitMergeBase := exec.Command("git", "merge-base", baseBranch, "HEAD")
 	mergeBase, err := gitMergeBase.Output()
 	if err != nil {
-		return "", fmt.Errorf("cannot find merge base with branch '%s': %s", baseBranch, err)
+		return "", fmt.Errorf("cannot find merge base with branch '%s': %s", baseBranch, err.(*exec.ExitError).Stderr)
 	}
 
 	return strings.TrimRight(string(mergeBase), "\n"), nil
 }
 
-func changedFiles(mainBranch bool, baseBranch string) ([]string, error) {
+// ChangedFiles uses git to determine the list of files that changed for
+// the current revision.
+// It can operate in a normal (branch) mode, where it compares to a 'baseBranch',
+// or a 'mainBranch' mode, where it compares to the previous revision
+func ChangedFiles(mainBranch bool, baseBranch string) ([]string, error) {
 	base, err := diffBase(mainBranch, baseBranch)
 	if err != nil {
 		return []string{}, err
@@ -34,56 +37,20 @@ func changedFiles(mainBranch bool, baseBranch string) ([]string, error) {
 
 	gitOut, err := gitDiff.Output()
 	if err != nil {
-		return []string{}, fmt.Errorf("cannot find changed files: %s", err)
+		return []string{}, fmt.Errorf("cannot find changed files:\n%s", err.(*exec.ExitError).Stderr)
 	}
 
 	changed := strings.Split(strings.TrimRight(string(gitOut), "\n"), "\n")
 	return changed, nil
 }
 
-func changedComponents(components []string, changedFiles []string) []string {
-	changedComponents := []string{}
+// Impacted calculates the list of changes impacted by a change
+func Impacted(changedComponents []string, dependencies graph.Graph) []string {
+	impactGraph := dependencies.Reverse()
+	impacted := impactGraph.Descendants(changedComponents)
 
-	for _, component := range components {
-		for _, change := range changedFiles {
-			if strings.HasPrefix(change, component) {
-				changedComponents = append(changedComponents, component)
-				break
-			}
-		}
-	}
+	result := append(impacted, changedComponents...)
+	sort.Strings(result)
 
-	return changedComponents
-}
-
-// Diff calculates the list of paths that need to be built based on the list of
-func Diff(manifestPaths []string, baseBranch string, mainBranch bool) ([]string, error) {
-	// Find components and dependency manifests
-	components, dependencies, errs := manifests.Read(manifestPaths, true)
-	if errs != nil {
-		errstrings := make([]string, len(errs))
-		for i, e := range errs {
-			errstrings[i] = string(e.Error())
-		}
-
-		return []string{}, fmt.Errorf("cannot load dependencies:\n%s", strings.Join(errstrings, "\n"))
-	}
-
-	// Get changed files
-	changes, err := changedFiles(mainBranch, baseBranch)
-	if err != nil {
-		return []string{}, fmt.Errorf("cannot find changes: %s", err)
-	}
-
-	// Reduce changed files to components
-	chgdComponents := changedComponents(components, changes)
-
-	// Construct build graph
-	dependencyGraph := graph.New(dependencies)
-	buildGraph := dependencyGraph.Reverse()
-
-	// Include the dependents
-	componentsToBuild := buildGraph.Descendants(set.New(chgdComponents)).AsStrings()
-
-	return componentsToBuild, nil
+	return result
 }

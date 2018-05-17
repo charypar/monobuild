@@ -3,12 +3,22 @@ package diff
 import (
 	"reflect"
 	"testing"
+
+	"github.com/charypar/monobuild/graph"
 )
 
-func Test_changedComponents(t *testing.T) {
+func Test_Impacted(t *testing.T) {
+	exampleDependencies := graph.New(map[string][]graph.Edge{
+		"a": []graph.Edge{{Label: "b", Colour: graph.Weak}, {Label: "c", Colour: graph.Weak}},
+		"b": []graph.Edge{{Label: "c", Colour: graph.Weak}},
+		"c": []graph.Edge{},
+		"d": []graph.Edge{{Label: "a", Colour: graph.Strong}},
+		"e": []graph.Edge{{Label: "a", Colour: graph.Strong}, {Label: "b", Colour: graph.Strong}},
+	})
+
 	type args struct {
-		components   []string
-		changedFiles []string
+		changedComponents []string
+		dependencies      graph.Graph
 	}
 	tests := []struct {
 		name string
@@ -16,60 +26,35 @@ func Test_changedComponents(t *testing.T) {
 		want []string
 	}{
 		{
-			"works with nothing",
-			args{[]string{}, []string{}},
-			[]string{},
-		},
-		{
-			"works with no components",
-			args{[]string{}, []string{"some/file/there.txt"}},
-			[]string{},
-		},
-		{
-			"works with no changes",
-			args{[]string{"component/one"}, []string{}},
-			[]string{},
-		},
-		{
-			"finds a changed component",
-			args{[]string{"component/one", "another"}, []string{"component/one/file/two.txt"}},
-			[]string{"component/one"},
-		},
-		{
-			"handles multiple files in a component",
+			"works with empty changes",
 			args{
-				[]string{"component/one", "another"},
-				[]string{"component/one/file/one.txt", "component/one/file/two.txt"},
+				[]string{},
+				exampleDependencies,
 			},
-			[]string{"component/one"},
+			[]string{},
 		},
 		{
-			"handles a complex case correctly",
+			"collects affected strong dependencies",
 			args{
-				[]string{
-					"stack",
-					"application-one",
-					"application-two",
-					"libraries/one",
-					"libraries/two",
-				},
-				[]string{
-					"stack/config.json",
-					"application-one/src/public/index.js",
-					"libraries/two/src/index.go",
-				},
+				[]string{"a"},
+				exampleDependencies,
 			},
-			[]string{
-				"stack",
-				"application-one",
-				"libraries/two",
+			[]string{"a", "d", "e"},
+		},
+		{
+			"collects all affected dependencies",
+			args{
+				[]string{"c"},
+				exampleDependencies,
 			},
+			[]string{"a", "b", "c", "d", "e"},
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := changedComponents(tt.args.components, tt.args.changedFiles); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("changedComponents() = %v, want %v", got, tt.want)
+			if got := Impacted(tt.args.changedComponents, tt.args.dependencies); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Dependencies() = %v, want %v", got, tt.want)
 			}
 		})
 	}

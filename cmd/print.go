@@ -2,60 +2,40 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
+	"log"
 
-	"github.com/bmatcuk/doublestar"
-	"github.com/charypar/monobuild/manifests"
+	"github.com/charypar/monobuild/cli"
 	"github.com/spf13/cobra"
 )
 
+var printDependencies bool
+var dotFormat bool
+
 var printCmd = &cobra.Command{
 	Use:   "print",
-	Short: "print the dependency graph",
-	Long:  `Read the dependency graph from dependency manifests, check all dependencies exist and pretty print it`,
-	Run:   printFn,
-}
+	Short: "Print the full build schedule or dependency graph",
+	Long: `Print the full build schedule or dependency graph based on the manifest files.
+The format of each line is:
 
-var dotFormat bool
+<component>: <dependency>, <dependency>, <dependency>, ...
+
+Diff can output either the build schedule (using only strong dependencies) or 
+the original dependeny graph (using all dependencies).`,
+	Run: printFn,
+}
 
 func init() {
 	rootCmd.AddCommand(printCmd)
 
-	printCmd.Flags().BoolVar(&dotFormat, "dot", false, "Output the dependencies in DOT format for GraphViz")
+	printCmd.Flags().BoolVar(&printDependencies, "dependencies", false, "Ouput the dependencies, not the build schedule")
+	printCmd.Flags().BoolVar(&dotFormat, "dot", false, "Print in DOT format for GraphViz")
 }
 
 func printFn(cmd *cobra.Command, args []string) {
-	paths, err := doublestar.Glob(dependencyFilesGlob)
+	dependencies, schedule, impacted, err := cli.Print(dependencyFilesGlob, dotFormat, printDependencies)
 	if err != nil {
-		panic(fmt.Errorf("Error finding dependency manifests: %s", err))
+		log.Fatal(err)
 	}
 
-	components, dependencies, errs := manifests.Read(paths, false)
-	if errs != nil {
-		for _, e := range errs {
-			fmt.Printf("Error: %s\n", e)
-		}
-		fmt.Println("")
-	}
-
-	if errs != nil && dotFormat {
-		return
-	}
-
-	if !dotFormat {
-		fmt.Printf("Found %d component(s). Dependency structure:\n\n", len(components))
-		for c, d := range dependencies {
-			fmt.Printf("%s -> %s\n", c, strings.Join(d, ", "))
-		}
-	} else {
-		fmt.Println("digraph graphname {")
-
-		for c, deps := range dependencies {
-			for _, d := range deps {
-				fmt.Printf("  \"%s\" -> \"%s\"\n", c, d)
-			}
-		}
-
-		fmt.Println("}")
-	}
+	fmt.Print(cli.Format(dependencies, schedule, impacted, dotFormat, printDependencies))
 }
