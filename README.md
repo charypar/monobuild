@@ -14,7 +14,7 @@ and based on it, it can decide what should be built, given a set of changes.
 For help, run
 
 ```sh
-$ mb help
+$ monobuild help
 ```
 
 ## Usage
@@ -53,11 +53,11 @@ means a change to the component, which therefore needs to be rebuilt, but the
 builds can be run in parallel. Output or result of the dependency does not
 affect the build of this component.
 
-Strong dependency has to successfully build first, in order for the build of
+A strong dependency has to successfully build first, in order for the build of
 the component to be possible. If the dependency build fails, the component
 build does not even start.
 
-Typically, services are built from source, inluding their libraries, so the
+Typically, services are built from source, including their libraries, so the
 dependencies on libraries are weak (we still want to run the library build to
 run tests and get a result though). Deploying orchestrations of services
 typically has a strong dependency on the service builds (as they produce
@@ -65,7 +65,7 @@ artifacts, e.g. docker images, needed by the deployment).
 
 ### Visualise dependency graph and build schedule
 
-To better understand the dependency graps and build schedules, Monobuild can
+To better understand the dependency graphs and build schedules, Monobuild can
 print them.
 
 ```sh
@@ -134,14 +134,14 @@ If the current directory is a git repository, monobuild can decide which
 components changed (using git).
 
 ```sh
-$ mb diff
+$ monobuild diff
 app2
 app2
 lib3
 ```
 
-Monobuild assumes use of [Mainline Development]() and changes are detected
-in two modes:
+Monobuild assumes use of [Mainline Development](https://gitversion.readthedocs.io/en/latest/reference/mainline-development/)
+and changes are detected in two modes:
 
 1.  for a feature branch, the change detection is equivalent to
 
@@ -156,7 +156,7 @@ in two modes:
     You can override this with
 
     ```sh
-    $ mb diff --base-branch develop
+    $ monobuild diff --base-branch develop
     ```
 
 2.  for a `master` branch (or other main branch) the change detection is equivalent
@@ -169,10 +169,10 @@ in two modes:
     To work in the main-branch mode, use the `--main-branch` flag
 
     ```sh
-    $ mb diff --main-branch
+    $ monobuild diff --main-branch
     ```
 
-The main difference between the above `git diff`s and `mb diff` is the
+The main difference between the above `git diff`s and `monobuild diff` is the
 dependency graph awareness.
 
 Monobuild will start with the list from `git diff`, filter it down to known
@@ -186,7 +186,7 @@ You can print the relevant part of the dependency graph (rather than
 the build schedule) with `--dependencies`
 
 ```
-$ mb diff --dependencies
+$ monobuild diff --dependencies
 ```
 
 Both modes also support DOT output with `--dot`. You can also print
@@ -205,7 +205,7 @@ component builds to build their dependencies.
 You can generate the makefile with
 
 ```sh
-$ mb makefile
+$ monobuild makefile
 ```
 
 The resulting Makefile consists of targets like this:
