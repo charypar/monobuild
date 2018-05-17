@@ -17,7 +17,7 @@ func diffBase(mainBranch bool, baseBranch string) (string, error) {
 	gitMergeBase := exec.Command("git", "merge-base", baseBranch, "HEAD")
 	mergeBase, err := gitMergeBase.Output()
 	if err != nil {
-		return "", fmt.Errorf("cannot find merge base with branch '%s': %s", baseBranch, err)
+		return "", fmt.Errorf("cannot find merge base with branch '%s': %s", baseBranch, err.(*exec.ExitError).Stderr)
 	}
 
 	return strings.TrimRight(string(mergeBase), "\n"), nil
@@ -37,7 +37,7 @@ func ChangedFiles(mainBranch bool, baseBranch string) ([]string, error) {
 
 	gitOut, err := gitDiff.Output()
 	if err != nil {
-		return []string{}, fmt.Errorf("cannot find changed files: %s", err)
+		return []string{}, fmt.Errorf("cannot find changed files:\n%s", err.(*exec.ExitError).Stderr)
 	}
 
 	changed := strings.Split(strings.TrimRight(string(gitOut), "\n"), "\n")

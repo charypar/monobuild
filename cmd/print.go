@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/charypar/monobuild/cli"
 	"github.com/spf13/cobra"
@@ -33,7 +34,7 @@ func init() {
 func printFn(cmd *cobra.Command, args []string) {
 	dependencies, schedule, impacted, err := cli.Print(dependencyFilesGlob, dotFormat, printDependencies)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
 	fmt.Print(cli.Format(dependencies, schedule, impacted, dotFormat, printDependencies))
