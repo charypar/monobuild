@@ -2,12 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"strings"
 
-	"github.com/bmatcuk/doublestar"
-	"github.com/charypar/monobuild/diff"
-	"github.com/charypar/monobuild/graph"
-	"github.com/charypar/monobuild/manifests"
+	"github.com/charypar/monobuild/cli"
 	"github.com/spf13/cobra"
 )
 
@@ -38,41 +34,11 @@ func init() {
 	diffCmd.Flags().BoolVar(&dotFormat, "dot", false, "Print in DOT format for GraphViz")
 }
 
-func joinErrors(message string, errors []error) error {
-	errstrings := make([]string, len(errors))
-	for i, e := range errors {
-		errstrings[i] = string(e.Error())
-	}
-
-	return fmt.Errorf("%s\n%s", message, strings.Join(errstrings, "\n"))
-}
-
 func diffFn(cmd *cobra.Command, args []string) {
-	manifestFiles, err := doublestar.Glob(dependencyFilesGlob)
+	out, err := cli.Diff(dependencyFilesGlob, mainBranch, baseBranch, dotFormat, printDependencies)
 	if err != nil {
-		panic(fmt.Errorf("error finding dependency manifests: %s", err))
+		panic(err)
 	}
 
-	// Find components and dependency manifests
-	components, deps, errs := manifests.Read(manifestFiles, false)
-	if errs != nil {
-		panic(joinErrors("cannot load dependencies:", errs))
-	}
-
-	// Get changed files
-	changes, err := diff.ChangedFiles(mainBranch, baseBranch)
-	if err != nil {
-		panic(fmt.Errorf("cannot find changes: %s", err))
-	}
-
-	// Reduce changed files to components
-	changedComponents := manifests.FilterComponents(components, changes)
-
-	// Find impacted components
-	dependencies := deps.AsGraph()
-	impacted := diff.Impacted(changedComponents, dependencies)
-
-	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
-
-	printGraph(dependencies, buildSchedule, impacted)
+	fmt.Print(out)
 }

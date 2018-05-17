@@ -3,10 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/bmatcuk/doublestar"
-
-	"github.com/charypar/monobuild/graph"
-	"github.com/charypar/monobuild/manifests"
+	"github.com/charypar/monobuild/cli"
 	"github.com/spf13/cobra"
 )
 
@@ -33,45 +30,11 @@ func init() {
 	printCmd.Flags().BoolVar(&dotFormat, "dot", false, "Print in DOT format for GraphViz")
 }
 
-func printGraph(dependencies graph.Graph, schedule graph.Graph, impacted []string) {
-	if dotFormat && printDependencies {
-		fmt.Print(dependencies.Dot(impacted))
-		return
-	}
-
-	if dotFormat {
-		fmt.Print(schedule.DotSchedule(impacted))
-		return
-	}
-
-	if printDependencies {
-		fmt.Print(dependencies.Text(impacted))
-		return
-	}
-
-	fmt.Print(schedule.Text(impacted))
-}
-
 func printFn(cmd *cobra.Command, args []string) {
-	paths, err := doublestar.Glob(dependencyFilesGlob)
+	output, err := cli.Print(dependencyFilesGlob, dotFormat, printDependencies)
 	if err != nil {
-		panic(fmt.Errorf("Error finding dependency manifests: %s", err))
+		panic(err)
 	}
 
-	_, deps, errs := manifests.Read(paths, false)
-	if errs != nil {
-		fmt.Print(joinErrors("cannot load dependencies:", errs))
-	}
-
-	if errs != nil && dotFormat {
-		return
-	}
-
-	// this is somewhat redundant in the print case
-	dependencies := deps.AsGraph()
-	selection := dependencies.Vertices() // everything
-
-	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
-
-	printGraph(dependencies, buildSchedule, selection)
+	fmt.Print(output)
 }
