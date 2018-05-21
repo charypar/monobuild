@@ -10,6 +10,7 @@ import (
 
 var baseBranch string
 var mainBranch bool
+var rebuildStrong bool
 var dotHighlight bool
 
 var diffCmd = &cobra.Command{
@@ -31,12 +32,13 @@ func init() {
 
 	diffCmd.Flags().StringVar(&baseBranch, "base-branch", "master", "Base branch to use for comparison")
 	diffCmd.Flags().BoolVar(&mainBranch, "main-branch", false, "Run in main branch mode (i.e. only compare with parent commit)")
+	diffCmd.Flags().BoolVar(&rebuildStrong, "rebuild-strong", false, "Include all strong dependencies of affected components")
 	diffCmd.Flags().BoolVar(&printDependencies, "dependencies", false, "Ouput the dependencies, not the build schedule")
 	diffCmd.Flags().BoolVar(&dotFormat, "dot", false, "Print in DOT format for GraphViz")
 }
 
 func diffFn(cmd *cobra.Command, args []string) {
-	dependencies, schedule, impacted, err := cli.Diff(dependencyFilesGlob, mainBranch, baseBranch, dotFormat, printDependencies)
+	dependencies, schedule, impacted, err := cli.Diff(dependencyFilesGlob, mainBranch, baseBranch, rebuildStrong, dotFormat, printDependencies)
 	if err != nil {
 		log.Fatal(err)
 	}
