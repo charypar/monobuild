@@ -192,7 +192,7 @@ $ monobuild diff --dependencies
 Both modes also support DOT output with `--dot`. You can also print
 the entire graph with the affected components with `--dot-highlight`.
 
-#### Rebuilding strong dependencies
+#### Rebuilding strong dependencies
 
 The assumption behind strong dependencies is that their outcome is required
 for the dependent builds to proceed. In most cases, this means that if no
