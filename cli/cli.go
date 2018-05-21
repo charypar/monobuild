@@ -56,7 +56,7 @@ func Print(dependencyFilesGlob string, dotFormat bool, printDependencies bool) (
 }
 
 // Diff is 'monobuild diff'
-func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, dotFormat bool, printDependencies bool) (graph.Graph, graph.Graph, []string, error) {
+func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, includeStrong bool, dotFormat bool, printDependencies bool) (graph.Graph, graph.Graph, []string, error) {
 	manifestFiles, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("error finding dependency manifests: %s", err)
@@ -82,6 +82,11 @@ func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, dotFor
 	impacted := diff.Impacted(changedComponents, dependencies)
 
 	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
+
+	if includeStrong {
+		strong := buildSchedule.Descendants(impacted)
+		impacted = append(impacted, strong...)
+	}
 
 	return dependencies, buildSchedule, impacted, nil
 }

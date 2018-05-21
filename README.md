@@ -192,6 +192,22 @@ $ monobuild diff --dependencies
 Both modes also support DOT output with `--dot`. You can also print
 the entire graph with the affected components with `--dot-highlight`.
 
+#### Rebuilding strong dependencies
+
+The assumption behind strong dependencies is that their outcome is required
+for the dependent builds to proceed. In most cases, this means that if no
+changes affected a component, the build does not need to run, because the outcome
+(e.g. a build artifact) already exists from a previous run of the build (when
+that component was affected).
+
+In certain situations, it could be useful to run the build again, to ensure its
+output is present. This will result in wasted work, but ensures builds won't
+fail because, for example, an artifact cache was lost. The wasted work can
+also largely be prevented by making builds idempotent.
+
+Monobuild supports this with an `--rebuild-strong` option on `diff`, which will
+include strong dependencies of all components affected by the change.
+
 ### Override the manifest matching
 
 If you want to use a different filename for the manifest files, you can do so
