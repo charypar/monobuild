@@ -38,7 +38,7 @@ func init() {
 }
 
 func diffFn(cmd *cobra.Command, args []string) {
-	dependencies, schedule, impacted, err := cli.Diff(dependencyFilesGlob, mainBranch, baseBranch, rebuildStrong, dotFormat, printDependencies)
+	dependencies, schedule, impacted, err := cli.Diff(dependencyFilesGlob, mainBranch, baseBranch, rebuildStrong, scope)
 	if err != nil {
 		log.Fatal(err)
 	}

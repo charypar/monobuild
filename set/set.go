@@ -60,6 +60,20 @@ func (s Set) Union(other Set) Set {
 	return result
 }
 
+// Intersect returns a set with all members of the original set which are
+// also in the other set
+func (s Set) Intersect(other Set) Set {
+	result := New([]string{})
+
+	for m := range s.members {
+		if other.Has(m) {
+			result.Add(m)
+		}
+	}
+
+	return result
+}
+
 // AsStrings returns the Set as a string slice
 func (s Set) AsStrings() []string {
 	Set := make([]string, 0, len(s.members))
