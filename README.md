@@ -213,6 +213,11 @@ include strong dependencies of all components affected by the change.
 If you want to use a different filename for the manifest files, you can do so
 using the global `--manifests` flag.
 
+### Scoping
+
+You can scope the results of both `diff` and `print` to a given component
+and its dependencies using the `--scope` flag
+
 ### Creating a Makefile
 
 Monobuild can also generate a `Makefile`, that can be used by individual
