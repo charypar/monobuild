@@ -8,6 +8,7 @@ import (
 	"github.com/charypar/monobuild/diff"
 	"github.com/charypar/monobuild/graph"
 	"github.com/charypar/monobuild/manifests"
+	"github.com/charypar/monobuild/set"
 )
 
 func joinErrors(message string, errors []error) error {
@@ -36,27 +37,47 @@ func Format(dependencies graph.Graph, schedule graph.Graph, impacted []string, d
 }
 
 // Print is 'monobuild print'
-func Print(dependencyFilesGlob string, dotFormat bool, printDependencies bool) (graph.Graph, graph.Graph, []string, error) {
+func Print(dependencyFilesGlob string, scope string) (graph.Graph, graph.Graph, []string, error) {
 	paths, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Error finding dependency manifests: %s", err)
 	}
 
-	_, deps, errs := manifests.Read(paths, false)
+	components, deps, errs := manifests.Read(paths, false)
 	if errs != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
 	}
 
-	dependencies := deps.AsGraph()
-	selection := dependencies.Vertices() // everything
+	if scope == "" {
+		dependencies := deps.AsGraph()
+		selection := dependencies.Vertices()
+		buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
 
+		return dependencies, buildSchedule, selection, nil
+	}
+
+	var scoped []string
+
+	// ensure valid scope
+	for _, c := range components {
+		if c == scope {
+			scoped = []string{scope}
+		}
+	}
+
+	if len(scoped) < 1 {
+		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Cannot scope to '%s', not a component", scope)
+	}
+
+	dependencies := deps.AsGraph()
+	selection := append(dependencies.Descendants(scoped), scoped...)
 	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
 
 	return dependencies, buildSchedule, selection, nil
 }
 
 // Diff is 'monobuild diff'
-func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, includeStrong bool, dotFormat bool, printDependencies bool) (graph.Graph, graph.Graph, []string, error) {
+func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, includeStrong bool, scope string) (graph.Graph, graph.Graph, []string, error) {
 	manifestFiles, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("error finding dependency manifests: %s", err)
@@ -80,6 +101,24 @@ func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, includ
 	// Find impacted components
 	dependencies := deps.AsGraph()
 	impacted := diff.Impacted(changedComponents, dependencies)
+
+	if scope != "" {
+		var scoped []string
+
+		// ensure valid scope
+		for _, c := range components {
+			if c == scope {
+				scoped = []string{scope}
+			}
+		}
+
+		if len(scoped) < 1 {
+			return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Cannot scope to '%s', not a component", scope)
+		}
+
+		scopedAndDeps := append(dependencies.Descendants(scoped), scoped...)
+		impacted = set.New(impacted).Intersect(set.New(scopedAndDeps)).AsStrings()
+	}
 
 	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
 

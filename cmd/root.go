@@ -16,9 +16,11 @@ history.`,
 }
 
 var dependencyFilesGlob string
+var scope string
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&dependencyFilesGlob, "dependency-files", "**/Dependencies", "Search pattern for dependency files")
+	rootCmd.PersistentFlags().StringVar(&scope, "scope", "", "Scope output to a single component and its dependencies")
 }
 
 // Execute the CLI
