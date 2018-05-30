@@ -37,7 +37,7 @@ func Format(dependencies graph.Graph, schedule graph.Graph, impacted []string, d
 }
 
 // Print is 'monobuild print'
-func Print(dependencyFilesGlob string, scope string) (graph.Graph, graph.Graph, []string, error) {
+func Print(dependencyFilesGlob string, scope string, topLevel bool) (graph.Graph, graph.Graph, []string, error) {
 	paths, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Error finding dependency manifests: %s", err)
@@ -48,36 +48,47 @@ func Print(dependencyFilesGlob string, scope string) (graph.Graph, graph.Graph, 
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
 	}
 
-	if scope == "" {
-		dependencies := deps.AsGraph()
-		selection := dependencies.Vertices()
-		buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
-
-		return dependencies, buildSchedule, selection, nil
-	}
-
-	var scoped []string
-
-	// ensure valid scope
-	for _, c := range components {
-		if c == scope {
-			scoped = []string{scope}
-		}
-	}
-
-	if len(scoped) < 1 {
-		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Cannot scope to '%s', not a component", scope)
-	}
-
 	dependencies := deps.AsGraph()
-	selection := append(dependencies.Descendants(scoped), scoped...)
 	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
+
+	selection := dependencies.Vertices()
+
+	if scope != "" {
+		var scoped []string
+
+		// ensure valid scope
+		for _, c := range components {
+			if c == scope {
+				scoped = []string{scope}
+			}
+		}
+
+		if len(scoped) < 1 {
+			return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Cannot scope to '%s', not a component", scope)
+		}
+
+		selection = append(dependencies.Descendants(scoped), scoped...)
+	}
+
+	if topLevel {
+		reverse := dependencies.Reverse()
+		vertices := dependencies.Vertices()
+
+		topLevel := make([]string, 0, len(vertices))
+		for i := range vertices {
+			if len(reverse.Children(vertices[i:i+1])) < 1 {
+				topLevel = append(topLevel, vertices[i])
+			}
+		}
+
+		selection = set.New(selection).Intersect(set.New(topLevel)).AsStrings()
+	}
 
 	return dependencies, buildSchedule, selection, nil
 }
 
 // Diff is 'monobuild diff'
-func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, includeStrong bool, scope string) (graph.Graph, graph.Graph, []string, error) {
+func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, includeStrong bool, scope string, topLevel bool) (graph.Graph, graph.Graph, []string, error) {
 	manifestFiles, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("error finding dependency manifests: %s", err)
@@ -100,6 +111,8 @@ func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, includ
 
 	// Find impacted components
 	dependencies := deps.AsGraph()
+	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
+
 	impacted := diff.Impacted(changedComponents, dependencies)
 
 	if scope != "" {
@@ -120,8 +133,21 @@ func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, includ
 		impacted = set.New(impacted).Intersect(set.New(scopedAndDeps)).AsStrings()
 	}
 
-	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
+	if topLevel {
+		reverse := dependencies.Reverse()
+		vertices := dependencies.Vertices()
 
+		topLevel := make([]string, 0, len(vertices))
+		for i := range vertices {
+			if len(reverse.Children(vertices[i:i+1])) < 1 {
+				topLevel = append(topLevel, vertices[i])
+			}
+		}
+
+		impacted = set.New(impacted).Intersect(set.New(topLevel)).AsStrings()
+	}
+
+	// needs to come _after_ topLevel!
 	if includeStrong {
 		strong := buildSchedule.Descendants(impacted)
 		impacted = append(impacted, strong...)
