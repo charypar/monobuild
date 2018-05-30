@@ -213,10 +213,18 @@ include strong dependencies of all components affected by the change.
 If you want to use a different filename for the manifest files, you can do so
 using the global `--manifests` flag.
 
-### Scoping
+### Filters
+
+#### Scope
 
 You can scope the results of both `diff` and `print` to a given component
 and its dependencies using the `--scope` flag
+
+#### Top-level components
+
+Sometimes it's useful to know the "entrypoints" into your dependency graph -
+the components that nothing depends on (typically services or applications).
+You can list only those with a `--top-level` flag on both `diff` and `print`.
 
 ### Creating a Makefile
 
