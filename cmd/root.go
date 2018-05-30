@@ -17,10 +17,12 @@ history.`,
 
 var dependencyFilesGlob string
 var scope string
+var topLevel bool
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&dependencyFilesGlob, "dependency-files", "**/Dependencies", "Search pattern for dependency files")
 	rootCmd.PersistentFlags().StringVar(&scope, "scope", "", "Scope output to a single component and its dependencies")
+	rootCmd.PersistentFlags().BoolVar(&topLevel, "top-level", false, "Only list top-level components that nothing depends on")
 }
 
 // Execute the CLI
