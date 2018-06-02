@@ -20,24 +20,61 @@ func joinErrors(message string, errors []error) error {
 	return fmt.Errorf("%s\n%s", message, strings.Join(errstrings, "\n"))
 }
 
-func Format(dependencies graph.Graph, schedule graph.Graph, impacted []string, dotFormat bool, printDependencies bool) string {
-	if dotFormat && printDependencies {
-		return dependencies.Dot(impacted)
+// Scope of selection
+type Scope struct {
+	Scope    string
+	TopLevel bool
+}
+
+// OutputFormat hold the format of text output
+type OutputFormat int
+
+// Text is the standard text format.
+// Each line follows this pattern:
+// <component>: dependency, dependency, dependency...
+var Text OutputFormat = 1
+
+// Dot is the DOT graph language, see https://graphviz.gitlab.io/_pages/doc/info/lang.html
+var Dot OutputFormat = 2
+
+// OutputType holds the kind of output to show
+type OutputType int
+
+// Schedule is a build schedule output showing build steps and their dependencies
+var Schedule OutputType = 1
+
+// Dependencies is the dependency graph showing components and their dependencies
+var Dependencies OutputType = 2
+
+// OutputOptions hold all the options that change how the result of a command is shown
+// on the command line.
+// The options are not always independent, e.g. the Dot format has different output
+// for Schedule type and Dependencies type.
+type OutputOptions struct {
+	Format OutputFormat // Output text format
+	Type   OutputType   // Type of output shown
+}
+
+// Format output for the command line, filtering nodes only to those in the 'filter' slice.
+// Output options can be set using 'opts
+func Format(dependencies graph.Graph, schedule graph.Graph, filter []string, opts OutputOptions) string {
+	if opts.Format == Dot && opts.Type == Dependencies {
+		return dependencies.Dot(filter)
 	}
 
-	if dotFormat {
-		return schedule.DotSchedule(impacted)
+	if opts.Format == Dot {
+		return schedule.DotSchedule(filter)
 	}
 
-	if printDependencies {
-		return dependencies.Text(impacted)
+	if opts.Type == Dependencies {
+		return dependencies.Text(filter)
 	}
 
-	return schedule.Text(impacted)
+	return schedule.Text(filter)
 }
 
 // Print is 'monobuild print'
-func Print(dependencyFilesGlob string, scope string, topLevel bool) (graph.Graph, graph.Graph, []string, error) {
+func Print(dependencyFilesGlob string, scope Scope) (graph.Graph, graph.Graph, []string, error) {
 	paths, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Error finding dependency manifests: %s", err)
@@ -53,24 +90,24 @@ func Print(dependencyFilesGlob string, scope string, topLevel bool) (graph.Graph
 
 	selection := dependencies.Vertices()
 
-	if scope != "" {
+	if scope.Scope != "" {
 		var scoped []string
 
 		// ensure valid scope
 		for _, c := range components {
-			if c == scope {
-				scoped = []string{scope}
+			if c == scope.Scope {
+				scoped = []string{scope.Scope}
 			}
 		}
 
 		if len(scoped) < 1 {
-			return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Cannot scope to '%s', not a component", scope)
+			return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Cannot scope to '%s', not a component", scope.Scope)
 		}
 
 		selection = append(dependencies.Descendants(scoped), scoped...)
 	}
 
-	if topLevel {
+	if scope.TopLevel {
 		reverse := dependencies.Reverse()
 		vertices := dependencies.Vertices()
 
@@ -88,7 +125,7 @@ func Print(dependencyFilesGlob string, scope string, topLevel bool) (graph.Graph
 }
 
 // Diff is 'monobuild diff'
-func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, baseCommit string, includeStrong bool, scope string, topLevel bool) (graph.Graph, graph.Graph, []string, error) {
+func Diff(dependencyFilesGlob string, mode diff.Mode, scope Scope, includeStrong bool) (graph.Graph, graph.Graph, []string, error) {
 	manifestFiles, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("error finding dependency manifests: %s", err)
@@ -101,7 +138,7 @@ func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, baseCo
 	}
 
 	// Get changed files
-	changes, err := diff.ChangedFiles(mainBranch, baseBranch, baseCommit)
+	changes, err := diff.ChangedFiles(mode)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("cannot find changes: %s", err)
 	}
@@ -115,25 +152,25 @@ func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, baseCo
 
 	impacted := diff.Impacted(changedComponents, dependencies)
 
-	if scope != "" {
+	if scope.Scope != "" {
 		var scoped []string
 
 		// ensure valid scope
 		for _, c := range components {
-			if c == scope {
-				scoped = []string{scope}
+			if c == scope.Scope {
+				scoped = []string{scope.Scope}
 			}
 		}
 
 		if len(scoped) < 1 {
-			return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Cannot scope to '%s', not a component", scope)
+			return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Cannot scope to '%s', not a component", scope.Scope)
 		}
 
 		scopedAndDeps := append(dependencies.Descendants(scoped), scoped...)
 		impacted = set.New(impacted).Intersect(set.New(scopedAndDeps)).AsStrings()
 	}
 
-	if topLevel {
+	if scope.TopLevel {
 		reverse := dependencies.Reverse()
 		vertices := dependencies.Vertices()
 
