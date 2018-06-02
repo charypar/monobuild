@@ -88,7 +88,7 @@ func Print(dependencyFilesGlob string, scope string, topLevel bool) (graph.Graph
 }
 
 // Diff is 'monobuild diff'
-func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, includeStrong bool, scope string, topLevel bool) (graph.Graph, graph.Graph, []string, error) {
+func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, baseCommit string, includeStrong bool, scope string, topLevel bool) (graph.Graph, graph.Graph, []string, error) {
 	manifestFiles, err := doublestar.Glob(dependencyFilesGlob)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("error finding dependency manifests: %s", err)
@@ -101,7 +101,7 @@ func Diff(dependencyFilesGlob string, mainBranch bool, baseBranch string, includ
 	}
 
 	// Get changed files
-	changes, err := diff.ChangedFiles(mainBranch, baseBranch)
+	changes, err := diff.ChangedFiles(mainBranch, baseBranch, baseCommit)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("cannot find changes: %s", err)
 	}

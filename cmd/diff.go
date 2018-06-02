@@ -9,6 +9,7 @@ import (
 )
 
 var baseBranch string
+var baseCommit string
 var mainBranch bool
 var rebuildStrong bool
 var dotHighlight bool
@@ -31,6 +32,7 @@ func init() {
 	rootCmd.AddCommand(diffCmd)
 
 	diffCmd.Flags().StringVar(&baseBranch, "base-branch", "master", "Base branch to use for comparison")
+	diffCmd.Flags().StringVar(&baseCommit, "base-commit", "", "Base commit to compare with (useful in main-brahnch mode when using rebase merging)")
 	diffCmd.Flags().BoolVar(&mainBranch, "main-branch", false, "Run in main branch mode (i.e. only compare with parent commit)")
 	diffCmd.Flags().BoolVar(&rebuildStrong, "rebuild-strong", false, "Include all strong dependencies of affected components")
 	diffCmd.Flags().BoolVar(&printDependencies, "dependencies", false, "Ouput the dependencies, not the build schedule")
@@ -38,7 +40,7 @@ func init() {
 }
 
 func diffFn(cmd *cobra.Command, args []string) {
-	dependencies, schedule, impacted, err := cli.Diff(dependencyFilesGlob, mainBranch, baseBranch, rebuildStrong, scope, topLevel)
+	dependencies, schedule, impacted, err := cli.Diff(dependencyFilesGlob, mainBranch, baseBranch, baseCommit, rebuildStrong, scope, topLevel)
 	if err != nil {
 		log.Fatal(err)
 	}
