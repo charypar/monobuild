@@ -25,7 +25,7 @@ func loadManifests(globPattern string) ([]string, graph.Graph, graph.Graph, erro
 		return []string{}, graph.Graph{}, graph.Graph{}, fmt.Errorf("error finding dependency manifests: %s", err)
 	}
 
-	// Find components and dependency manifests
+	// Find components and dependencies
 	components, deps, errs := manifests.Read(manifestFiles, false)
 	if errs != nil {
 		return []string{}, graph.Graph{}, graph.Graph{}, fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
