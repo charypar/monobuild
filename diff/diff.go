@@ -9,9 +9,9 @@ import (
 	"github.com/charypar/monobuild/graph"
 )
 
-func diffBase(mainBranch bool, baseBranch string) (string, error) {
+func diffBase(mainBranch bool, baseBranch string, baseCommit string) (string, error) {
 	if mainBranch {
-		return "HEAD^1", nil
+		return baseCommit, nil
 	}
 
 	gitMergeBase := exec.Command("git", "merge-base", baseBranch, "HEAD")
@@ -25,10 +25,10 @@ func diffBase(mainBranch bool, baseBranch string) (string, error) {
 
 // ChangedFiles uses git to determine the list of files that changed for
 // the current revision.
-// It can operate in a normal (branch) mode, where it compares to a 'baseBranch',
-// or a 'mainBranch' mode, where it compares to the previous revision
-func ChangedFiles(mainBranch bool, baseBranch string) ([]string, error) {
-	base, err := diffBase(mainBranch, baseBranch)
+// It can operate in a normal (branch) mode, where it compares to a 'baseBranch'
+// or a 'mainBranch' mode, where it compares to the previous revision or a 'baseCommit'
+func ChangedFiles(mainBranch bool, baseBranch string, baseCommit string) ([]string, error) {
+	base, err := diffBase(mainBranch, baseBranch, baseCommit)
 	if err != nil {
 		return []string{}, err
 	}
