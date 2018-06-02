@@ -11,11 +11,7 @@ import (
 
 func diffBase(mainBranch bool, baseBranch string, baseCommit string) (string, error) {
 	if mainBranch {
-		if baseCommit != "" {
-			return baseCommit, nil
-		}
-
-		return "HEAD^1", nil
+		return baseCommit, nil
 	}
 
 	gitMergeBase := exec.Command("git", "merge-base", baseBranch, "HEAD")
