@@ -31,7 +31,6 @@ func loadManifests(globPattern string) ([]string, graph.Graph, graph.Graph, erro
 		return []string{}, graph.Graph{}, graph.Graph{}, fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
 	}
 
-	// Find impacted components
 	dependencies := deps.AsGraph()
 	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
 
@@ -127,6 +126,7 @@ func Diff(dependencyFilesGlob string, mode diff.Mode, scope Scope, includeStrong
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("cannot find changes: %s", err)
 	}
 
+	// Find impacted components
 	changedComponents := manifests.FilterComponents(components, changes)
 	impacted := diff.Impacted(changedComponents, dependencies)
 
