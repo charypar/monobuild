@@ -36,6 +36,7 @@ func (f *filter) scopeTo(component string, dependencies graph.Graph) error {
 }
 
 func (f *filter) onlyTop(dependencies graph.Graph) {
+	// FIXME this algorithm probably belongs to graph
 	reverse := dependencies.Reverse()
 	vertices := dependencies.Vertices()
 
