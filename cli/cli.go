@@ -8,7 +8,6 @@ import (
 	"github.com/charypar/monobuild/diff"
 	"github.com/charypar/monobuild/graph"
 	"github.com/charypar/monobuild/manifests"
-	"github.com/charypar/monobuild/set"
 )
 
 func joinErrors(message string, errors []error) error {
@@ -18,6 +17,25 @@ func joinErrors(message string, errors []error) error {
 	}
 
 	return fmt.Errorf("%s\n%s", message, strings.Join(errstrings, "\n"))
+}
+
+func loadManifests(globPattern string) ([]string, graph.Graph, graph.Graph, error) {
+	manifestFiles, err := doublestar.Glob(globPattern)
+	if err != nil {
+		return []string{}, graph.Graph{}, graph.Graph{}, fmt.Errorf("error finding dependency manifests: %s", err)
+	}
+
+	// Find components and dependency manifests
+	components, deps, errs := manifests.Read(manifestFiles, false)
+	if errs != nil {
+		return []string{}, graph.Graph{}, graph.Graph{}, fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
+	}
+
+	// Find impacted components
+	dependencies := deps.AsGraph()
+	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
+
+	return components, dependencies, buildSchedule, nil
 }
 
 // Scope of selection
@@ -75,66 +93,32 @@ func Format(dependencies graph.Graph, schedule graph.Graph, filter []string, opt
 
 // Print is 'monobuild print'
 func Print(dependencyFilesGlob string, scope Scope) (graph.Graph, graph.Graph, []string, error) {
-	paths, err := doublestar.Glob(dependencyFilesGlob)
+	components, dependencies, buildSchedule, err := loadManifests(dependencyFilesGlob)
 	if err != nil {
-		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Error finding dependency manifests: %s", err)
+		return graph.Graph{}, graph.Graph{}, []string{}, err
 	}
 
-	components, deps, errs := manifests.Read(paths, false)
-	if errs != nil {
-		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
-	}
-
-	dependencies := deps.AsGraph()
-	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
-
-	selection := dependencies.Vertices()
+	selection := newFilter(components, []string{})
 
 	if scope.Scope != "" {
-		var scoped []string
-
-		// ensure valid scope
-		for _, c := range components {
-			if c == scope.Scope {
-				scoped = []string{scope.Scope}
-			}
+		err = selection.scopeTo(scope.Scope, dependencies)
+		if err != nil {
+			return graph.Graph{}, graph.Graph{}, []string{}, err
 		}
-
-		if len(scoped) < 1 {
-			return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Cannot scope to '%s', not a component", scope.Scope)
-		}
-
-		selection = append(dependencies.Descendants(scoped), scoped...)
 	}
 
 	if scope.TopLevel {
-		reverse := dependencies.Reverse()
-		vertices := dependencies.Vertices()
-
-		topLevel := make([]string, 0, len(vertices))
-		for i := range vertices {
-			if len(reverse.Children(vertices[i:i+1])) < 1 {
-				topLevel = append(topLevel, vertices[i])
-			}
-		}
-
-		selection = set.New(selection).Intersect(set.New(topLevel)).AsStrings()
+		selection.onlyTop(dependencies)
 	}
 
-	return dependencies, buildSchedule, selection, nil
+	return dependencies, buildSchedule, selection.AsStrings(), nil
 }
 
 // Diff is 'monobuild diff'
 func Diff(dependencyFilesGlob string, mode diff.Mode, scope Scope, includeStrong bool) (graph.Graph, graph.Graph, []string, error) {
-	manifestFiles, err := doublestar.Glob(dependencyFilesGlob)
+	components, dependencies, buildSchedule, err := loadManifests(dependencyFilesGlob)
 	if err != nil {
-		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("error finding dependency manifests: %s", err)
-	}
-
-	// Find components and dependency manifests
-	components, deps, errs := manifests.Read(manifestFiles, false)
-	if errs != nil {
-		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
+		return graph.Graph{}, graph.Graph{}, []string{}, err
 	}
 
 	// Get changed files
@@ -143,52 +127,28 @@ func Diff(dependencyFilesGlob string, mode diff.Mode, scope Scope, includeStrong
 		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("cannot find changes: %s", err)
 	}
 
-	// Reduce changed files to components
 	changedComponents := manifests.FilterComponents(components, changes)
-
-	// Find impacted components
-	dependencies := deps.AsGraph()
-	buildSchedule := dependencies.FilterEdges([]int{graph.Strong})
-
 	impacted := diff.Impacted(changedComponents, dependencies)
 
+	// Select what to show
+
+	selection := newFilter(components, impacted)
+
 	if scope.Scope != "" {
-		var scoped []string
-
-		// ensure valid scope
-		for _, c := range components {
-			if c == scope.Scope {
-				scoped = []string{scope.Scope}
-			}
+		err = selection.scopeTo(scope.Scope, dependencies)
+		if err != nil {
+			return graph.Graph{}, graph.Graph{}, []string{}, err
 		}
-
-		if len(scoped) < 1 {
-			return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("Cannot scope to '%s', not a component", scope.Scope)
-		}
-
-		scopedAndDeps := append(dependencies.Descendants(scoped), scoped...)
-		impacted = set.New(impacted).Intersect(set.New(scopedAndDeps)).AsStrings()
 	}
 
 	if scope.TopLevel {
-		reverse := dependencies.Reverse()
-		vertices := dependencies.Vertices()
-
-		topLevel := make([]string, 0, len(vertices))
-		for i := range vertices {
-			if len(reverse.Children(vertices[i:i+1])) < 1 {
-				topLevel = append(topLevel, vertices[i])
-			}
-		}
-
-		impacted = set.New(impacted).Intersect(set.New(topLevel)).AsStrings()
+		selection.onlyTop(dependencies)
 	}
 
 	// needs to come _after_ topLevel!
 	if includeStrong {
-		strong := buildSchedule.Descendants(impacted)
-		impacted = append(impacted, strong...)
+		selection.addStrong(buildSchedule)
 	}
 
-	return dependencies, buildSchedule, impacted, nil
+	return dependencies, buildSchedule, selection.AsStrings(), nil
 }
