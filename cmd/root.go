@@ -15,14 +15,20 @@ components live side by side) and decide what should be built, given the git
 history.`,
 }
 
-var dependencyFilesGlob string
-var scope string
-var topLevel bool
+type commonOptions struct {
+	dependencyFilesGlob string
+	scope               string
+	topLevel            bool
+	printDependencies   bool
+	dotFormat           bool
+}
+
+var commonOpts commonOptions
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&dependencyFilesGlob, "dependency-files", "**/Dependencies", "Search pattern for dependency files")
-	rootCmd.PersistentFlags().StringVar(&scope, "scope", "", "Scope output to a single component and its dependencies")
-	rootCmd.PersistentFlags().BoolVar(&topLevel, "top-level", false, "Only list top-level components that nothing depends on")
+	rootCmd.PersistentFlags().StringVar(&commonOpts.dependencyFilesGlob, "dependency-files", "**/Dependencies", "Search pattern for dependency files")
+	rootCmd.PersistentFlags().StringVar(&commonOpts.scope, "scope", "", "Scope output to a single component and its dependencies")
+	rootCmd.PersistentFlags().BoolVar(&commonOpts.topLevel, "top-level", false, "Only list top-level components that nothing depends on")
 }
 
 // Execute the CLI

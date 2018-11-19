@@ -8,9 +8,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var printDependencies bool
-var dotFormat bool
-
 var printCmd = &cobra.Command{
 	Use:   "print",
 	Short: "Print the full build schedule or dependency graph",
@@ -27,15 +24,37 @@ the original dependeny graph (using all dependencies).`,
 func init() {
 	rootCmd.AddCommand(printCmd)
 
-	printCmd.Flags().BoolVar(&printDependencies, "dependencies", false, "Ouput the dependencies, not the build schedule")
-	printCmd.Flags().BoolVar(&dotFormat, "dot", false, "Print in DOT format for GraphViz")
+	printCmd.Flags().BoolVar(&commonOpts.printDependencies, "dependencies", false, "Ouput the dependencies, not the build schedule")
+	printCmd.Flags().BoolVar(&commonOpts.dotFormat, "dot", false, "Print in DOT format for GraphViz")
 }
 
 func printFn(cmd *cobra.Command, args []string) {
-	dependencies, schedule, impacted, err := cli.Print(dependencyFilesGlob, scope, topLevel)
+	// first we tediously process the CLI flags
+
+	var format cli.OutputFormat
+	if commonOpts.dotFormat {
+		format = cli.Dot
+	} else {
+		format = cli.Text
+	}
+
+	scope := cli.Scope{Scope: commonOpts.scope, TopLevel: commonOpts.topLevel}
+
+	var outType cli.OutputType
+	if commonOpts.printDependencies {
+		outType = cli.Dependencies
+	} else {
+		outType = cli.Schedule
+	}
+
+	outputOpts := cli.OutputOptions{Format: format, Type: outType}
+
+	// then we run the CLI
+
+	dependencies, schedule, impacted, err := cli.Print(commonOpts.dependencyFilesGlob, scope)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Print(cli.Format(dependencies, schedule, impacted, dotFormat, printDependencies))
+	fmt.Print(cli.Format(dependencies, schedule, impacted, outputOpts))
 }
