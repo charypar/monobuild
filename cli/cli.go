@@ -73,7 +73,7 @@ type OutputOptions struct {
 }
 
 // Format output for the command line, filtering nodes only to those in the 'filter' slice.
-// Output options can be set using 'opts
+// Output options can be set using 'opts'
 func Format(dependencies graph.Graph, schedule graph.Graph, filter []string, opts OutputOptions) string {
 	if opts.Format == Dot && opts.Type == Dependencies {
 		return dependencies.Dot(filter)
