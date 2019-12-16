@@ -171,6 +171,14 @@ func Test_FilterComponents(t *testing.T) {
 			[]string{"a/component-v2"},
 		},
 		{
+			"changes outside of components result in no changes",
+			args{
+				[]string{"component/one", "component/two", "something-else"},
+				[]string{".github/CODEOWNERS"},
+			},
+			[]string{},
+		},
+		{
 			"handles a complex case correctly",
 			args{
 				[]string{
