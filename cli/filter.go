@@ -14,12 +14,7 @@ type filter struct {
 
 func newFilter(components []string, filtered []string) filter {
 	componentsSet := set.New(components)
-	var filteredSet set.Set
-	if len(filtered) < 1 {
-		filteredSet = componentsSet
-	} else {
-		filteredSet = set.New(filtered)
-	}
+	filteredSet := set.New(filtered)
 
 	return filter{components: componentsSet, filtered: filteredSet}
 }

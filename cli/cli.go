@@ -97,7 +97,7 @@ func Print(dependencyFilesGlob string, scope Scope) (graph.Graph, graph.Graph, [
 		return graph.Graph{}, graph.Graph{}, []string{}, err
 	}
 
-	selection := newFilter(components, []string{})
+	selection := newFilter(components, components)
 
 	if scope.Scope != "" {
 		err = selection.scopeTo(scope.Scope, dependencies)
