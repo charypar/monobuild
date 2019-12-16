@@ -163,6 +163,14 @@ func Test_FilterComponents(t *testing.T) {
 			[]string{"component/one"},
 		},
 		{
+			"only matches full component name",
+			args{
+				[]string{"a/component", "a/component-v2"},
+				[]string{"a/component-v2/file.txt"},
+			},
+			[]string{"a/component-v2"},
+		},
+		{
 			"handles a complex case correctly",
 			args{
 				[]string{
