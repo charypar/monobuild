@@ -141,7 +141,7 @@ func FilterComponents(components []string, changedFiles []string) []string {
 
 	for _, component := range components {
 		for _, change := range changedFiles {
-			if strings.HasPrefix(change, component + "/") {
+			if strings.HasPrefix(change, component+"/") {
 				changedComponents = append(changedComponents, component)
 				break
 			}
