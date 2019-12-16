@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/bmatcuk/doublestar"
@@ -81,6 +82,8 @@ func Test_Read(t *testing.T) {
 				t.Errorf("Read() error = %v, wantErr %v", errs, tt.wantErr)
 				return
 			}
+
+			sort.Strings(got)
 
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Read() got = %#v, want %#v", got, tt.want)
