@@ -113,17 +113,62 @@ func Print(dependencyFilesGlob string, scope Scope) (graph.Graph, graph.Graph, [
 	return dependencies, buildSchedule, selection.AsStrings(), nil
 }
 
+// DiffMode is the diff command mode, the kind of branch we're working on, or
+// direct input
+type DiffMode int
+
+// FeatureBranch is a feature branch mode
+var FeatureBranch DiffMode = 1
+
+// MainBranch is a main branch mode
+var MainBranch DiffMode = 2
+
+// Direct indicates a directly supplied file list
+var Direct DiffMode = 3
+
+// DiffContext holds configuration for the Diff command
+type DiffContext struct {
+	Mode         DiffMode // I realy want tagged unions right now.
+	BaseBranch   string
+	BaseCommit   string
+	ChangedFiles []string
+}
+
+func diffModeFrom(diffContext DiffContext) diff.Mode {
+	var diffMode diff.BranchMode
+	switch diffContext.Mode {
+	case FeatureBranch:
+		diffMode = diff.Feature
+	case MainBranch:
+		diffMode = diff.Main
+	}
+
+	return diff.Mode{
+		Mode:       diffMode,
+		BaseBranch: diffContext.BaseBranch,
+		BaseCommit: diffContext.BaseCommit,
+	}
+}
+
 // Diff is 'monobuild diff'
-func Diff(dependencyFilesGlob string, mode diff.Mode, scope Scope, includeStrong bool) (graph.Graph, graph.Graph, []string, error) {
+func Diff(dependencyFilesGlob string, diffContext DiffContext, scope Scope, includeStrong bool) (graph.Graph, graph.Graph, []string, error) {
 	components, dependencies, buildSchedule, err := loadManifests(dependencyFilesGlob)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, err
 	}
 
 	// Get changed files
-	changes, err := diff.ChangedFiles(mode)
-	if err != nil {
-		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("cannot find changes: %s", err)
+	var changes []string
+
+	if diffContext.Mode == Direct {
+		// Used supplied list
+		changes = diffContext.ChangedFiles
+	} else {
+		// Get changes from git
+		changes, err = diff.ChangedFiles(diffModeFrom(diffContext))
+		if err != nil {
+			return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("cannot find changes: %s", err)
+		}
 	}
 
 	// Find impacted components
