@@ -17,6 +17,11 @@ For help, run
 $ monobuild help
 ```
 
+### Versioning
+
+Monobuild uses [Immutable Versioning](https://imver.github.io) as its versioning
+scheme.
+
 ## Usage
 
 Monobuild constructs the dependency graph from dependency manifests. By

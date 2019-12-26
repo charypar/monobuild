@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/bmatcuk/doublestar"
@@ -82,6 +83,8 @@ func Test_Read(t *testing.T) {
 				return
 			}
 
+			sort.Strings(got)
+
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("Read() got = %#v, want %#v", got, tt.want)
 			}
@@ -158,6 +161,22 @@ func Test_FilterComponents(t *testing.T) {
 				[]string{"component/one/file/one.txt", "component/one/file/two.txt"},
 			},
 			[]string{"component/one"},
+		},
+		{
+			"only matches full component name",
+			args{
+				[]string{"a/component", "a/component-v2"},
+				[]string{"a/component-v2/file.txt"},
+			},
+			[]string{"a/component-v2"},
+		},
+		{
+			"changes outside of components result in no changes",
+			args{
+				[]string{"component/one", "component/two", "something-else"},
+				[]string{".github/CODEOWNERS"},
+			},
+			[]string{},
 		},
 		{
 			"handles a complex case correctly",
