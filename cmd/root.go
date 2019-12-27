@@ -21,6 +21,7 @@ type commonOptions struct {
 	topLevel            bool
 	printDependencies   bool
 	dotFormat           bool
+	printFull           bool
 }
 
 var commonOpts commonOptions

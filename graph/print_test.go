@@ -17,42 +17,55 @@ func TestText(t *testing.T) {
 		name      string
 		graph     Graph
 		selection []string
+		showType  bool
 		want      string
 	}{
 		{
 			"prints an empty graph",
 			exampleDependencies,
 			[]string{},
+			false,
 			"",
 		},
 		{
 			"prints a single node",
 			exampleDependencies,
 			[]string{"a"},
+			false,
 			"a: \n",
 		},
 		{
 			"prints a single edge",
 			exampleDependencies,
 			[]string{"a", "b"},
+			false,
 			"a: b\nb: \n",
 		},
 		{
 			"prints a fan",
 			exampleDependencies,
 			[]string{"a", "b", "c"},
+			false,
 			"a: b, c\nb: c\nc: \n",
 		},
 		{
 			"prints a graph",
 			exampleDependencies,
 			[]string{"a", "b", "c", "d"},
+			false,
 			"a: b, c\nb: c\nc: \nd: a\n",
+		},
+		{
+			"prints a graph with strength shown",
+			exampleDependencies,
+			[]string{"a", "b", "c", "d"},
+			true,
+			"a: b, c\nb: c\nc: \nd: !a\n",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.graph.Text(tt.selection); got != tt.want {
+			if got := tt.graph.Text(tt.selection, tt.showType); got != tt.want {
 				t.Errorf("Text() = %v, want %v", got, tt.want)
 			}
 		})

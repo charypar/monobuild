@@ -58,6 +58,7 @@ func init() {
 	diffCmd.Flags().BoolVar(&diffOpts.rebuildStrong, "rebuild-strong", false, "Include all strong dependencies of affected components")
 	diffCmd.Flags().BoolVar(&commonOpts.printDependencies, "dependencies", false, "Ouput the dependencies, not the build schedule")
 	diffCmd.Flags().BoolVar(&commonOpts.dotFormat, "dot", false, "Print in DOT format for GraphViz")
+	diffCmd.Flags().BoolVar(&commonOpts.printFull, "full", false, "Print the full dependency graph including strengths")
 }
 
 func diffFn(cmd *cobra.Command, args []string) {
@@ -96,7 +97,9 @@ func diffFn(cmd *cobra.Command, args []string) {
 	scope := cli.Scope{Scope: commonOpts.scope, TopLevel: commonOpts.topLevel}
 
 	var outType cli.OutputType
-	if commonOpts.printDependencies {
+	if commonOpts.printFull {
+		outType = cli.Full
+	} else if commonOpts.printDependencies {
 		outType = cli.Dependencies
 	} else {
 		outType = cli.Schedule

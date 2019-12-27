@@ -63,6 +63,9 @@ var Schedule OutputType = 1
 // Dependencies is the dependency graph showing components and their dependencies
 var Dependencies OutputType = 2
 
+// Full shows the graph in full including dependency strength
+var Full OutputType = 3
+
 // OutputOptions hold all the options that change how the result of a command is shown
 // on the command line.
 // The options are not always independent, e.g. the Dot format has different output
@@ -84,10 +87,14 @@ func Format(dependencies graph.Graph, schedule graph.Graph, filter []string, opt
 	}
 
 	if opts.Type == Dependencies {
-		return dependencies.Text(filter)
+		return dependencies.Text(filter, false)
 	}
 
-	return schedule.Text(filter)
+	if opts.Type == Full {
+		return dependencies.Text(filter, true)
+	}
+
+	return schedule.Text(filter, false)
 }
 
 // Print is 'monobuild print'

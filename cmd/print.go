@@ -26,6 +26,8 @@ func init() {
 
 	printCmd.Flags().BoolVar(&commonOpts.printDependencies, "dependencies", false, "Ouput the dependencies, not the build schedule")
 	printCmd.Flags().BoolVar(&commonOpts.dotFormat, "dot", false, "Print in DOT format for GraphViz")
+	printCmd.Flags().BoolVar(&commonOpts.printFull, "full", false, "Print the full dependency graph including strengths")
+
 }
 
 func printFn(cmd *cobra.Command, args []string) {
@@ -41,7 +43,9 @@ func printFn(cmd *cobra.Command, args []string) {
 	scope := cli.Scope{Scope: commonOpts.scope, TopLevel: commonOpts.topLevel}
 
 	var outType cli.OutputType
-	if commonOpts.printDependencies {
+	if commonOpts.printFull {
+		outType = cli.Full
+	} else if commonOpts.printDependencies {
 		outType = cli.Dependencies
 	} else {
 		outType = cli.Schedule

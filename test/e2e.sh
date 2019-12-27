@@ -223,6 +223,16 @@ expected="app4: "
 
 assert_eq "monobuild diff --dependencies --top-level --scope app4" "$actual" "$expected"
 
+# monobuild diff --full
+actual=$(echo "$changes" | $mb diff --full -)
+expected="app1: libs/lib2
+app2: libs/lib2
+app4: 
+libs/lib2: 
+stack1: !app1, !app2"
+
+assert_eq "monobuild diff --full" "$actual" "$expected"
+
 # Return a status based on success
 exit $exit_status
 
