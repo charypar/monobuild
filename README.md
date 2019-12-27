@@ -290,8 +290,6 @@ You can also override the build command (`make build` by default) with the
 
 ## Working without a local repository
 
-**not implemented**
-
 Monobuild can work without a local clone and checkout of your repository. All of
 the use can be supported with GitHub API calls.
 
@@ -299,6 +297,8 @@ This is an **optimisation** and may not be necessary on relatively small monorep
 if your CI caches the repo and only pulls changes since last build.
 
 ### Load dependency graph from a file
+
+**not implemented**
 
 It is possible to keep the dependencies in a central dependency graph file, which
 is useful for big repos, when you want to work without a full local checkout (e.g. on CI).
