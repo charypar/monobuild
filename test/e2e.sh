@@ -23,7 +23,7 @@ assert_eq()
   actual=$2
   expected=$3
 
-  if [[ $actual == $expected ]]; then
+  if [ "$actual" == "$expected" ]; then
     printf "${SUCCESS} $title\n"
   else
     printf "${FAILURE} $title\n"
