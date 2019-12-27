@@ -8,7 +8,12 @@ default: build
 run: $(GOPATH)/bin/monobuild
 	@$(GOPATH)/bin/monobuild
 
-test: install
+test: install unit-test e2e-test
+
+e2e-test:
+	@sh test/e2e.sh
+
+unit-test:
 	@go test ./...
 
 # Building
