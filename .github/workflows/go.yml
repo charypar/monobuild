@@ -22,8 +22,24 @@ jobs:
               dep ensure
           fi
 
+      - name: Link code into GOPATH
+        run: |
+          ls -l $(go env GOPATH)/src/github.com/charypar
+          mkdir -p $(go env GOPATH)/src/github.com/charypar
+          rm -rf $(go env GOPATH)/src/github.com/charypar/monobuild
+          ln -s $(pwd) $(go env GOPATH)/src/github.com/charypar/monobuild
+          ls -l $(go env GOPATH)/src/github.com/charypar
+
       - name: Build
-        run: make
+        run: |
+          ls -l $(go env GOPATH)/src/github.com/charypar
+          ls -l .
+          ls -l $(go env GOPATH)/src/github.com/charypar/monobuild/
+          make
 
       - name: Test
-        run: make test
+        run: |
+          ls -l $(go env GOPATH)/src/github.com/charypar
+          ls -l .
+          ls -l $(go env GOPATH)/src/github.com/charypar/monobuild/
+          make test
