@@ -209,3 +209,111 @@ func Test_FilterComponents(t *testing.T) {
 		})
 	}
 }
+
+func TestReadRepoManifest(t *testing.T) {
+	tests := []struct {
+		name     string
+		manifest string
+		want     []string
+		want1    Dependencies
+		wantErr  int
+	}{
+		// TODO: Add test cases.
+		{
+			"Empty manifest",
+			"",
+			[]string{},
+			Dependencies{deps: map[string][]Dependency{}},
+			0,
+		},
+		{
+			"Single component",
+			"lib1:",
+			[]string{
+				"lib1",
+			},
+			Dependencies{deps: map[string][]Dependency{
+				"lib1": []Dependency{{"lib1", Weak}},
+			}},
+			0,
+		},
+		{
+			"Component with a dependency",
+			"lib1: lib2\nlib2: ",
+			[]string{"lib1", "lib2"},
+			Dependencies{deps: map[string][]Dependency{
+				"lib1": []Dependency{{"lib1", Weak}, {"lib2", Weak}},
+				"lib2": []Dependency{{"lib2", Weak}},
+			}},
+			0,
+		},
+		{
+			"Component with multiple dependencies",
+			"lib1: lib2, lib3\nlib2: \nlib3: ",
+			[]string{"lib1", "lib2", "lib3"},
+			Dependencies{deps: map[string][]Dependency{
+				"lib1": []Dependency{{"lib1", Weak}, {"lib2", Weak}, {"lib3", Weak}},
+				"lib2": []Dependency{{"lib2", Weak}},
+				"lib3": []Dependency{{"lib3", Weak}},
+			}},
+			0,
+		},
+		{
+			"Complex manifest",
+			"# comment\napp1: lib1, lib2, lib3\napp2: \nlib1: \nlib2: lib3\nlib3: \n\nstack1: !app1, !app2",
+			[]string{"app1", "app2", "lib1", "lib2", "lib3", "stack1"},
+			Dependencies{deps: map[string][]Dependency{
+				"app1":   []Dependency{{"app1", Weak}, {"lib1", Weak}, {"lib2", Weak}, {"lib3", Weak}},
+				"app2":   []Dependency{{"app2", Weak}},
+				"lib1":   []Dependency{{"lib1", Weak}},
+				"lib2":   []Dependency{{"lib2", Weak}, {"lib3", Weak}},
+				"lib3":   []Dependency{{"lib3", Weak}},
+				"stack1": []Dependency{{"stack1", Weak}, {"app1", Strong}, {"app2", Strong}},
+			}},
+			0,
+		},
+		{
+			"Malformed line manifest",
+			"# comment\napp1: lib1, lib2, lib3\nWHAT\napp2: \nlib1: \nlib2: lib3\nlib3: \n\nstack1: !app1, !app2",
+			[]string{"app1", "app2", "lib1", "lib2", "lib3", "stack1"},
+			Dependencies{deps: map[string][]Dependency{
+				"app1":   []Dependency{{"app1", Weak}, {"lib1", Weak}, {"lib2", Weak}, {"lib3", Weak}},
+				"app2":   []Dependency{{"app2", Weak}},
+				"lib1":   []Dependency{{"lib1", Weak}},
+				"lib2":   []Dependency{{"lib2", Weak}, {"lib3", Weak}},
+				"lib3":   []Dependency{{"lib3", Weak}},
+				"stack1": []Dependency{{"stack1", Weak}, {"app1", Strong}, {"app2", Strong}},
+			}},
+			1,
+		},
+		{
+			"Incomplete manifest",
+			"# comment\napp1: lib1, lib2, lib3, unknown\n\napp2: \nlib1: \nlib2: lib3\nlib3: \n\nstack1: !app1, !app2",
+			[]string{"app1", "app2", "lib1", "lib2", "lib3", "stack1"},
+			Dependencies{deps: map[string][]Dependency{
+				"app1":   []Dependency{{"app1", Weak}, {"lib1", Weak}, {"lib2", Weak}, {"lib3", Weak}, {"unknown", Weak}},
+				"app2":   []Dependency{{"app2", Weak}},
+				"lib1":   []Dependency{{"lib1", Weak}},
+				"lib2":   []Dependency{{"lib2", Weak}, {"lib3", Weak}},
+				"lib3":   []Dependency{{"lib3", Weak}},
+				"stack1": []Dependency{{"stack1", Weak}, {"app1", Strong}, {"app2", Strong}},
+			}},
+			1,
+		}}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, got1, got2 := ReadRepoManifest(tt.manifest, true)
+
+			sort.Strings(got)
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("ReadRepoManifest() got = %#v, want %#v", got, tt.want)
+			}
+			if !reflect.DeepEqual(got1, tt.want1) {
+				t.Errorf("ReadRepoManifest() got1 = %#v, want %#v", got1, tt.want1)
+			}
+			if len(got2) != tt.wantErr {
+				t.Errorf("ReadRepoManifest() got2 = %d, want %d", len(got2), tt.wantErr)
+			}
+		})
+	}
+}
