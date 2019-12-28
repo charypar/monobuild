@@ -5,6 +5,7 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/bmatcuk/doublestar"
@@ -210,13 +211,23 @@ func Test_FilterComponents(t *testing.T) {
 	}
 }
 
+func joinErrors(message string, errors []error) error {
+	errstrings := make([]string, len(errors))
+	for i, e := range errors {
+		errstrings[i] = string(e.Error())
+	}
+
+	return fmt.Errorf("%s\n%s", message, strings.Join(errstrings, "\n"))
+}
+
 func TestReadRepoManifest(t *testing.T) {
 	tests := []struct {
 		name     string
 		manifest string
 		want     []string
 		want1    Dependencies
-		wantErr  int
+		wantErrs bool
+		errors   []error
 	}{
 		// TODO: Add test cases.
 		{
@@ -224,7 +235,8 @@ func TestReadRepoManifest(t *testing.T) {
 			"",
 			[]string{},
 			Dependencies{deps: map[string][]Dependency{}},
-			0,
+			false,
+			nil,
 		},
 		{
 			"Single component",
@@ -235,7 +247,8 @@ func TestReadRepoManifest(t *testing.T) {
 			Dependencies{deps: map[string][]Dependency{
 				"lib1": []Dependency{{"lib1", Weak}},
 			}},
-			0,
+			false,
+			nil,
 		},
 		{
 			"Component with a dependency",
@@ -245,7 +258,8 @@ func TestReadRepoManifest(t *testing.T) {
 				"lib1": []Dependency{{"lib1", Weak}, {"lib2", Weak}},
 				"lib2": []Dependency{{"lib2", Weak}},
 			}},
-			0,
+			false,
+			nil,
 		},
 		{
 			"Component with multiple dependencies",
@@ -256,7 +270,8 @@ func TestReadRepoManifest(t *testing.T) {
 				"lib2": []Dependency{{"lib2", Weak}},
 				"lib3": []Dependency{{"lib3", Weak}},
 			}},
-			0,
+			false,
+			nil,
 		},
 		{
 			"Complex manifest",
@@ -270,12 +285,13 @@ func TestReadRepoManifest(t *testing.T) {
 				"lib3":   []Dependency{{"lib3", Weak}},
 				"stack1": []Dependency{{"stack1", Weak}, {"app1", Strong}, {"app2", Strong}},
 			}},
-			0,
+			false,
+			nil,
 		},
 		{
 			"Malformed line manifest",
 			"# comment\napp1: lib1, lib2, lib3\nWHAT\napp2: \nlib1: \nlib2: lib3\nlib3: \n\nstack1: !app1, !app2",
-			[]string{"app1", "app2", "lib1", "lib2", "lib3", "stack1"},
+			nil,
 			Dependencies{deps: map[string][]Dependency{
 				"app1":   []Dependency{{"app1", Weak}, {"lib1", Weak}, {"lib2", Weak}, {"lib3", Weak}},
 				"app2":   []Dependency{{"app2", Weak}},
@@ -284,12 +300,13 @@ func TestReadRepoManifest(t *testing.T) {
 				"lib3":   []Dependency{{"lib3", Weak}},
 				"stack1": []Dependency{{"stack1", Weak}, {"app1", Strong}, {"app2", Strong}},
 			}},
-			1,
+			true,
+			[]error{fmt.Errorf("bad line format: 'WHAT' expected 'componnennt: dependency, dependency, ...'")},
 		},
 		{
 			"Incomplete manifest",
 			"# comment\napp1: lib1, lib2, lib3, unknown\n\napp2: \nlib1: \nlib2: lib3\nlib3: \n\nstack1: !app1, !app2",
-			[]string{"app1", "app2", "lib1", "lib2", "lib3", "stack1"},
+			nil,
 			Dependencies{deps: map[string][]Dependency{
 				"app1":   []Dependency{{"app1", Weak}, {"lib1", Weak}, {"lib2", Weak}, {"lib3", Weak}, {"unknown", Weak}},
 				"app2":   []Dependency{{"app2", Weak}},
@@ -298,11 +315,16 @@ func TestReadRepoManifest(t *testing.T) {
 				"lib3":   []Dependency{{"lib3", Weak}},
 				"stack1": []Dependency{{"stack1", Weak}, {"app1", Strong}, {"app2", Strong}},
 			}},
-			1,
+			true,
+			[]error{fmt.Errorf("unknown dependency 'unknown' of 'app1'")},
 		}}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, got1, got2 := ReadRepoManifest(tt.manifest, true)
+			got, got1, gotErr := ReadRepoManifest(tt.manifest, true)
+
+			if !tt.wantErrs && gotErr != nil {
+				t.Errorf("ReadRepoManifest() received errors %#v", gotErr)
+			}
 
 			sort.Strings(got)
 			if !reflect.DeepEqual(got, tt.want) {
@@ -311,8 +333,8 @@ func TestReadRepoManifest(t *testing.T) {
 			if !reflect.DeepEqual(got1, tt.want1) {
 				t.Errorf("ReadRepoManifest() got1 = %#v, want %#v", got1, tt.want1)
 			}
-			if len(got2) != tt.wantErr {
-				t.Errorf("ReadRepoManifest() got2 = %d, want %d", len(got2), tt.wantErr)
+			if !reflect.DeepEqual(joinErrors("", gotErr), joinErrors("", tt.errors)) {
+				t.Errorf("ReadRepoManifest() gotErr = %d, want %d", joinErrors("", gotErr), joinErrors("", tt.errors))
 			}
 		})
 	}

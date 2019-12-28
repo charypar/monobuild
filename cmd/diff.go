@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 
@@ -107,8 +108,18 @@ func diffFn(cmd *cobra.Command, args []string) {
 
 	outputOpts := cli.OutputOptions{Format: format, Type: outType}
 
+	repoManifest := ""
+	if len(commonOpts.repoManifestFile) > 0 {
+		bytes, err := ioutil.ReadFile(commonOpts.repoManifestFile)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		repoManifest = string(bytes)
+	}
+
 	// run the CLI command
-	dependencies, schedule, impacted, err := cli.Diff(commonOpts.dependencyFilesGlob, diffContext, scope, diffOpts.rebuildStrong)
+	dependencies, schedule, impacted, err := cli.Diff(commonOpts.dependencyFilesGlob, diffContext, scope, diffOpts.rebuildStrong, repoManifest)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -17,6 +17,7 @@ history.`,
 
 type commonOptions struct {
 	dependencyFilesGlob string
+	repoManifestFile    string
 	scope               string
 	topLevel            bool
 	printDependencies   bool
@@ -28,6 +29,7 @@ var commonOpts commonOptions
 
 func init() {
 	rootCmd.PersistentFlags().StringVar(&commonOpts.dependencyFilesGlob, "dependency-files", "**/Dependencies", "Search pattern for dependency files")
+	rootCmd.PersistentFlags().StringVarP(&commonOpts.repoManifestFile, "file", "f", "", "Full manifest file (as produced by 'print --full')")
 	rootCmd.PersistentFlags().StringVar(&commonOpts.scope, "scope", "", "Scope output to a single component and its dependencies")
 	rootCmd.PersistentFlags().BoolVar(&commonOpts.topLevel, "top-level", false, "Only list top-level components that nothing depends on")
 }

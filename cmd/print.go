@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 
 	"github.com/charypar/monobuild/cli"
@@ -53,9 +54,19 @@ func printFn(cmd *cobra.Command, args []string) {
 
 	outputOpts := cli.OutputOptions{Format: format, Type: outType}
 
-	// then we run the CLI
+	repoManifest := ""
+	if len(commonOpts.repoManifestFile) > 0 {
+		bytes, err := ioutil.ReadFile(commonOpts.repoManifestFile)
+		if err != nil {
+			fmt.Printf("Failed reading: %s", err)
+			log.Fatal(err)
+		}
 
-	dependencies, schedule, impacted, err := cli.Print(commonOpts.dependencyFilesGlob, scope)
+		repoManifest = string(bytes)
+	}
+
+	// then we run the CLI
+	dependencies, schedule, impacted, err := cli.Print(commonOpts.dependencyFilesGlob, scope, repoManifest)
 	if err != nil {
 		log.Fatal(err)
 	}

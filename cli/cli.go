@@ -19,14 +19,21 @@ func joinErrors(message string, errors []error) error {
 	return fmt.Errorf("%s\n%s", message, strings.Join(errstrings, "\n"))
 }
 
-func loadManifests(globPattern string) ([]string, graph.Graph, graph.Graph, error) {
-	manifestFiles, err := doublestar.Glob(globPattern)
-	if err != nil {
-		return []string{}, graph.Graph{}, graph.Graph{}, fmt.Errorf("error finding dependency manifests: %s", err)
+func loadManifests(globPattern string, repoManifest string) ([]string, graph.Graph, graph.Graph, error) {
+	components, deps, errs := []string{}, manifests.Dependencies{}, []error{}
+
+	if len(repoManifest) > 0 {
+		components, deps, errs = manifests.ReadRepoManifest(repoManifest, false)
+	} else {
+		manifestFiles, err := doublestar.Glob(globPattern)
+		if err != nil {
+			return []string{}, graph.Graph{}, graph.Graph{}, fmt.Errorf("error finding dependency manifests: %s", err)
+		}
+
+		// Find components and dependencies
+		components, deps, errs = manifests.Read(manifestFiles, false)
 	}
 
-	// Find components and dependencies
-	components, deps, errs := manifests.Read(manifestFiles, false)
 	if errs != nil {
 		return []string{}, graph.Graph{}, graph.Graph{}, fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
 	}
@@ -98,8 +105,8 @@ func Format(dependencies graph.Graph, schedule graph.Graph, filter []string, opt
 }
 
 // Print is 'monobuild print'
-func Print(dependencyFilesGlob string, scope Scope) (graph.Graph, graph.Graph, []string, error) {
-	components, dependencies, buildSchedule, err := loadManifests(dependencyFilesGlob)
+func Print(dependencyFilesGlob string, scope Scope, repoManifest string) (graph.Graph, graph.Graph, []string, error) {
+	components, dependencies, buildSchedule, err := loadManifests(dependencyFilesGlob, repoManifest)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, err
 	}
@@ -158,8 +165,8 @@ func diffModeFrom(diffContext DiffContext) diff.Mode {
 }
 
 // Diff is 'monobuild diff'
-func Diff(dependencyFilesGlob string, diffContext DiffContext, scope Scope, includeStrong bool) (graph.Graph, graph.Graph, []string, error) {
-	components, dependencies, buildSchedule, err := loadManifests(dependencyFilesGlob)
+func Diff(dependencyFilesGlob string, diffContext DiffContext, scope Scope, includeStrong bool, repoManifest string) (graph.Graph, graph.Graph, []string, error) {
+	components, dependencies, buildSchedule, err := loadManifests(dependencyFilesGlob, repoManifest)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, err
 	}

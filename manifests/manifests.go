@@ -29,6 +29,8 @@ type Dependency struct {
 	Kind Kind
 }
 
+// Dependencies holds a collection of dependencies as a map from a component name
+// to a list of Dependency instances
 type Dependencies struct {
 	deps map[string][]Dependency
 }
@@ -187,7 +189,12 @@ func ReadRepoManifest(manifest string, dependOnSelf bool) ([]string, Dependencie
 		}
 	}
 
-	return components, Dependencies{dependencies}, errors
+	if len(errors) > 0 {
+		return nil, Dependencies{dependencies}, errors
+	}
+
+	return components, Dependencies{dependencies}, nil
+
 }
 
 // FilterComponents filters a list of files to components

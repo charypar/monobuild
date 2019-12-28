@@ -100,6 +100,30 @@ stack1: !app1, !app2, !app3"
 
 assert_eq "monobuild print --dependencies" "$actual" "$expected"
 
+# monobuild print -f dependencies.mb --full
+manifest="one: libs/one, libs/two
+two: libs/two, libs/three
+three: libs/three
+four: 
+libs/one: libs/three
+libs/two: libs/three
+libs/three: 
+stack: !one, !two, !three"
+echo "$manifest" > dependencies.mb
+actual=$($mb print -f dependencies.mb --full)
+expected="four: 
+libs/one: libs/three
+libs/three: 
+libs/two: libs/three
+one: libs/one, libs/two
+stack: !one, !two, !three
+three: libs/three
+two: libs/two, libs/three"
+
+assert_eq "monobuild print -f dependencies.mb --full" "$actual" "$expected"
+
+rm dependencies.mb
+
 # monobuild diff 
 printf "\nDiff command:\n"
 
