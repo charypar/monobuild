@@ -222,7 +222,7 @@ func (d Dependencies) AsGraph() graph.Graph {
 
 		for _, d := range ds {
 			// FIXME there should really be a mapping of kind to colour
-			result[c] = append(result[c], graph.Edge{d.Name, int(d.Kind)})
+			result[c] = append(result[c], graph.Edge{Label: d.Name, Colour: int(d.Kind)})
 		}
 	}
 
