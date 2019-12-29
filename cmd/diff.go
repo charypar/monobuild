@@ -39,7 +39,7 @@ Optionally, they can be provided externaly from stdin, by adding a hypen (-) aft
 the diff command.`,
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) > 1 {
-			return errors.New("roo many arguments")
+			return errors.New("Too many arguments")
 		}
 		if len(args) == 1 && args[0] != "-" {
 			return fmt.Errorf("Invalid first argument: %s, only \"-\" is allowed", args[0])

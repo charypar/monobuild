@@ -108,7 +108,7 @@ app3: libs/lib3
 ```
 
 Monobuild can also print the entire dependency structure including whether the
-dependencies are weak or storng. This is useful when
+dependencies are weak or strong. This is useful when
 [working without a local repo](#working-without-a-local-repository)
 
 **this flag is not implemented yet**
@@ -352,10 +352,10 @@ $ curl -O https://raw.githubusercontent.com/myorg/myrepo/blob/master/dependencie
 
 # Get a list of changed files remotely from Github API
 # (note the followig only works up to 300 files)
-$ curl -s -o chaged-files https://api.github.com/repos/charypar/monobuild/pulls/21/files | jq -r .[].filename
+$ curl -s -o changed-files https://api.github.com/repos/charypar/monobuild/pulls/21/files | jq -r .[].filename
 
 # Get a build schedule
-$ cat chaged-files | monobuild diff -f depednencies.monobuild -
+$ cat changed-files | monobuild diff -f dependencies.monobuild -
 ```
 
 This is complicated enough that I might wrap it in a small service which can
