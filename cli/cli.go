@@ -19,14 +19,21 @@ func joinErrors(message string, errors []error) error {
 	return fmt.Errorf("%s\n%s", message, strings.Join(errstrings, "\n"))
 }
 
-func loadManifests(globPattern string) ([]string, graph.Graph, graph.Graph, error) {
-	manifestFiles, err := doublestar.Glob(globPattern)
-	if err != nil {
-		return []string{}, graph.Graph{}, graph.Graph{}, fmt.Errorf("error finding dependency manifests: %s", err)
+func loadManifests(globPattern string, repoManifest string) ([]string, graph.Graph, graph.Graph, error) {
+	components, deps, errs := []string{}, manifests.Dependencies{}, []error{}
+
+	if len(repoManifest) > 0 {
+		components, deps, errs = manifests.ReadRepoManifest(repoManifest, false)
+	} else {
+		manifestFiles, err := doublestar.Glob(globPattern)
+		if err != nil {
+			return []string{}, graph.Graph{}, graph.Graph{}, fmt.Errorf("error finding dependency manifests: %s", err)
+		}
+
+		// Find components and dependencies
+		components, deps, errs = manifests.Read(manifestFiles, false)
 	}
 
-	// Find components and dependencies
-	components, deps, errs := manifests.Read(manifestFiles, false)
 	if errs != nil {
 		return []string{}, graph.Graph{}, graph.Graph{}, fmt.Errorf("%s", joinErrors("cannot load dependencies:", errs))
 	}
@@ -63,6 +70,9 @@ var Schedule OutputType = 1
 // Dependencies is the dependency graph showing components and their dependencies
 var Dependencies OutputType = 2
 
+// Full shows the graph in full including dependency strength
+var Full OutputType = 3
+
 // OutputOptions hold all the options that change how the result of a command is shown
 // on the command line.
 // The options are not always independent, e.g. the Dot format has different output
@@ -84,15 +94,19 @@ func Format(dependencies graph.Graph, schedule graph.Graph, filter []string, opt
 	}
 
 	if opts.Type == Dependencies {
-		return dependencies.Text(filter)
+		return dependencies.Text(filter, false)
 	}
 
-	return schedule.Text(filter)
+	if opts.Type == Full {
+		return dependencies.Text(filter, true)
+	}
+
+	return schedule.Text(filter, false)
 }
 
 // Print is 'monobuild print'
-func Print(dependencyFilesGlob string, scope Scope) (graph.Graph, graph.Graph, []string, error) {
-	components, dependencies, buildSchedule, err := loadManifests(dependencyFilesGlob)
+func Print(dependencyFilesGlob string, scope Scope, repoManifest string) (graph.Graph, graph.Graph, []string, error) {
+	components, dependencies, buildSchedule, err := loadManifests(dependencyFilesGlob, repoManifest)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, err
 	}
@@ -113,17 +127,62 @@ func Print(dependencyFilesGlob string, scope Scope) (graph.Graph, graph.Graph, [
 	return dependencies, buildSchedule, selection.AsStrings(), nil
 }
 
+// DiffMode is the diff command mode, the kind of branch we're working on, or
+// direct input
+type DiffMode int
+
+// FeatureBranch is a feature branch mode
+var FeatureBranch DiffMode = 1
+
+// MainBranch is a main branch mode
+var MainBranch DiffMode = 2
+
+// Direct indicates a directly supplied file list
+var Direct DiffMode = 3
+
+// DiffContext holds configuration for the Diff command
+type DiffContext struct {
+	Mode         DiffMode // I realy want tagged unions right now.
+	BaseBranch   string
+	BaseCommit   string
+	ChangedFiles []string
+}
+
+func diffModeFrom(diffContext DiffContext) diff.Mode {
+	var diffMode diff.BranchMode
+	switch diffContext.Mode {
+	case FeatureBranch:
+		diffMode = diff.Feature
+	case MainBranch:
+		diffMode = diff.Main
+	}
+
+	return diff.Mode{
+		Mode:       diffMode,
+		BaseBranch: diffContext.BaseBranch,
+		BaseCommit: diffContext.BaseCommit,
+	}
+}
+
 // Diff is 'monobuild diff'
-func Diff(dependencyFilesGlob string, mode diff.Mode, scope Scope, includeStrong bool) (graph.Graph, graph.Graph, []string, error) {
-	components, dependencies, buildSchedule, err := loadManifests(dependencyFilesGlob)
+func Diff(dependencyFilesGlob string, diffContext DiffContext, scope Scope, includeStrong bool, repoManifest string) (graph.Graph, graph.Graph, []string, error) {
+	components, dependencies, buildSchedule, err := loadManifests(dependencyFilesGlob, repoManifest)
 	if err != nil {
 		return graph.Graph{}, graph.Graph{}, []string{}, err
 	}
 
 	// Get changed files
-	changes, err := diff.ChangedFiles(mode)
-	if err != nil {
-		return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("cannot find changes: %s", err)
+	var changes []string
+
+	if diffContext.Mode == Direct {
+		// Used supplied list
+		changes = diffContext.ChangedFiles
+	} else {
+		// Get changes from git
+		changes, err = diff.ChangedFiles(diffModeFrom(diffContext))
+		if err != nil {
+			return graph.Graph{}, graph.Graph{}, []string{}, fmt.Errorf("cannot find changes: %s", err)
+		}
 	}
 
 	// Find impacted components

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 
 	"github.com/charypar/monobuild/cli"
@@ -26,6 +27,8 @@ func init() {
 
 	printCmd.Flags().BoolVar(&commonOpts.printDependencies, "dependencies", false, "Ouput the dependencies, not the build schedule")
 	printCmd.Flags().BoolVar(&commonOpts.dotFormat, "dot", false, "Print in DOT format for GraphViz")
+	printCmd.Flags().BoolVar(&commonOpts.printFull, "full", false, "Print the full dependency graph including strengths")
+
 }
 
 func printFn(cmd *cobra.Command, args []string) {
@@ -41,7 +44,9 @@ func printFn(cmd *cobra.Command, args []string) {
 	scope := cli.Scope{Scope: commonOpts.scope, TopLevel: commonOpts.topLevel}
 
 	var outType cli.OutputType
-	if commonOpts.printDependencies {
+	if commonOpts.printFull {
+		outType = cli.Full
+	} else if commonOpts.printDependencies {
 		outType = cli.Dependencies
 	} else {
 		outType = cli.Schedule
@@ -49,9 +54,19 @@ func printFn(cmd *cobra.Command, args []string) {
 
 	outputOpts := cli.OutputOptions{Format: format, Type: outType}
 
-	// then we run the CLI
+	repoManifest := ""
+	if len(commonOpts.repoManifestFile) > 0 {
+		bytes, err := ioutil.ReadFile(commonOpts.repoManifestFile)
+		if err != nil {
+			fmt.Printf("Failed reading: %s", err)
+			log.Fatal(err)
+		}
 
-	dependencies, schedule, impacted, err := cli.Print(commonOpts.dependencyFilesGlob, scope)
+		repoManifest = string(bytes)
+	}
+
+	// then we run the CLI
+	dependencies, schedule, impacted, err := cli.Print(commonOpts.dependencyFilesGlob, scope, repoManifest)
 	if err != nil {
 		log.Fatal(err)
 	}

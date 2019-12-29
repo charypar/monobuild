@@ -15,7 +15,7 @@ var Weak = 1
 var Strong = 2
 
 // Text returns graph as text suitable for output
-func (g Graph) Text(selection []string) string {
+func (g Graph) Text(selection []string, showType bool) string {
 	var result string
 	filter := set.New(selection)
 
@@ -38,7 +38,12 @@ func (g Graph) Text(selection []string) string {
 				continue
 			}
 
-			names = append(names, v.Label)
+			label := v.Label
+			if showType && v.Colour == Strong {
+				label = "!" + v.Label
+			}
+
+			names = append(names, label)
 		}
 
 		result += fmt.Sprintf("%s: %s\n", c, strings.Join(names, ", "))
@@ -83,7 +88,7 @@ func (g Graph) Dot(selection []string) string {
 			}
 
 			var format string
-			if d.Colour == Weak {
+			if d.Colour == Weak { // FIXME clean up when --full is supported? Breaking change...
 				format = " [style=dashed]"
 			}
 

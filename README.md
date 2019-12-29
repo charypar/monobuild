@@ -107,6 +107,24 @@ app2: libs/lib2, libs/lib3
 app3: libs/lib3
 ```
 
+Monobuild can also print the entire dependency structure including whether the
+dependencies are weak or strong. This is useful when
+[working without a local repo](#working-without-a-local-repository)
+
+```
+$ monobuild print --full
+app4:
+libs/lib1: libs/lib3
+libs/lib2: libs/lib3
+libs/lib3:
+stack1: !app1, !app2, !app3
+app1: libs/lib1, libs/lib2
+app2: libs/lib2, libs/lib3
+app3: libs/lib3
+```
+
+#### Graphical output
+
 Print also supports graphical output using GraphViz
 
 ```
@@ -233,6 +251,8 @@ You can list only those with a `--top-level` flag on both `diff` and `print`.
 
 ### Creating a Makefile
 
+**not implemented**
+
 Monobuild can also generate a `Makefile`, that can be used by individual
 component builds to build their dependencies.
 
@@ -264,3 +284,77 @@ build:
 
 You can also override the build command (`make build` by default) with the
 `--build-command` flag.
+
+## Working without a local repository
+
+Monobuild can work without a local clone and checkout of your repository. All of
+the use can be supported with GitHub API calls.
+
+This is an **optimisation** and may not be necessary on relatively small monorepos or
+if your CI caches the repo and only pulls changes since last build.
+
+### Load dependency graph from a file
+
+It is possible to keep the dependencies in a central dependency graph file, which
+is useful for big repos, when you want to work without a full local checkout (e.g. on CI).
+
+Monobuild supports this by allowing a map file to be specified with the `-f` flag.
+For example:
+
+```sh
+$ curl -O https://raw.githubusercontent.com/myorg/myrepo/blob/master/dependencies.monobuild
+$ mononobuild print -f ./dependencies.monobuild --dependencies
+```
+
+The file can be created with the `print` command itself, which will collect the
+manifests and produce the full map.
+
+```sh
+$ monobuild print --full
+app4:
+libs/lib1: libs/lib3
+libs/lib2: libs/lib3
+libs/lib3:
+stack1: !app1, !app2, !app3
+app1: libs/lib1, libs/lib2
+app2: libs/lib2, libs/lib3
+app3: libs/lib3
+```
+
+You can update the dependency map as follows (with a local checkout):
+
+```sh
+$ monobuild print --full > dependencies.monobuild
+```
+
+### Read changed files from standard input
+
+Similarly, the changed files for `diff` can be supplied externally, from
+standard input, e.g.
+
+```
+$ git diff --no-commit-id --name-only -r $(git merge-base master HEAD) | monobuild diff -
+```
+
+**note the hyphen at the end**, indicating the diff should be taken from stdin,
+instead of running the git command.
+
+### A full CI example
+
+A full example may look as follows:
+
+```
+# Fetch the dependency map
+$ curl -O https://raw.githubusercontent.com/myorg/myrepo/blob/master/dependencies.monobuild
+
+# Get a list of changed files remotely from Github API
+# (note the followig only works up to 300 files)
+$ curl -s -o changed-files https://api.github.com/repos/charypar/monobuild/pulls/21/files | jq -r .[].filename
+
+# Get a build schedule
+$ cat changed-files | monobuild diff -f dependencies.monobuild -
+```
+
+This is complicated enough that I might wrap it in a small service which can
+respond to a GitHub webhook, get the right information off of GitHub and then
+trigger the right builds from a set of webhooks.

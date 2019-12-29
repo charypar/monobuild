@@ -29,6 +29,8 @@ type Dependency struct {
 	Kind Kind
 }
 
+// Dependencies holds a collection of dependencies as a map from a component name
+// to a list of Dependency instances
 type Dependencies struct {
 	deps map[string][]Dependency
 }
@@ -135,6 +137,66 @@ func Read(manifestPaths []string, dependOnSelf bool) ([]string, Dependencies, []
 	return components, Dependencies{dependencies}, nil
 }
 
+// ReadRepoManifest reads a full repository manifest as produced by monobuild print --full
+func ReadRepoManifest(manifest string, dependOnSelf bool) ([]string, Dependencies, []error) {
+	lines := strings.Split(manifest, "\n")
+	dependencies := make(map[string][]Dependency, len(lines))
+	components := make([]string, 0, len(lines))
+	errors := []error{}
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if len(line) < 1 || line[0] == '#' { // skip blank lines and comments
+			continue
+		}
+
+		parts := strings.Split(line, ":")
+		if len(parts) != 2 {
+			errors = append(errors, fmt.Errorf("bad line format: '%s' expected 'componnennt: dependency, dependency, ...'", line))
+			continue
+		}
+
+		component := strings.TrimSpace(parts[0])
+		components = append(components, component)
+
+		dependencies[component] = []Dependency{}
+
+		for _, d := range strings.Split(parts[1], ",") {
+			if len(strings.TrimSpace(d)) < 1 {
+				continue
+			}
+
+			dep, err := readDependency(d)
+			if err != nil {
+				errors = append(errors, fmt.Errorf("malformed dependency: %s", d))
+				continue
+			}
+
+			dependencies[component] = append(dependencies[component], dep)
+		}
+
+		if dependOnSelf {
+			dependencies[component] = append([]Dependency{Dependency{component, Weak}}, dependencies[component]...)
+		}
+	}
+
+	// validate dependencies
+	for manifest, deps := range dependencies {
+		for _, dep := range deps {
+			if !validDependency(components, dep) {
+				errors = append(errors, fmt.Errorf("unknown dependency '%s' of '%s'", dep.Name, manifest))
+			}
+		}
+	}
+
+	if len(errors) > 0 {
+		return nil, Dependencies{}, errors
+	}
+
+	return components, Dependencies{dependencies}, nil
+
+}
+
 // FilterComponents filters a list of files to components
 func FilterComponents(components []string, changedFiles []string) []string {
 	changedComponents := []string{}
@@ -160,7 +222,7 @@ func (d Dependencies) AsGraph() graph.Graph {
 
 		for _, d := range ds {
 			// FIXME there should really be a mapping of kind to colour
-			result[c] = append(result[c], graph.Edge{d.Name, int(d.Kind)})
+			result[c] = append(result[c], graph.Edge{Label: d.Name, Colour: int(d.Kind)})
 		}
 	}
 
