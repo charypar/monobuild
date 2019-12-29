@@ -190,7 +190,7 @@ func ReadRepoManifest(manifest string, dependOnSelf bool) ([]string, Dependencie
 	}
 
 	if len(errors) > 0 {
-		return nil, Dependencies{dependencies}, errors
+		return nil, Dependencies{}, errors
 	}
 
 	return components, Dependencies{dependencies}, nil
