@@ -126,3 +126,35 @@ func (g Graph) DotSchedule(selection []string) string {
 
 	return result + "}\n"
 }
+
+// Text returns graph as text suitable for output
+func (g Graph) GithubMatrix(selection []string) string {
+	names := make([]string, 0)
+	filter := set.New(selection)
+
+	cs := make([]string, len(g.edges))
+	for c := range g.edges {
+		cs = append(cs, c)
+	}
+	sort.Strings(cs)
+
+	for _, c := range cs {
+		if !filter.Has(c) {
+			continue
+		}
+
+		d := g.edges[c]
+
+		for _, v := range d {
+			if !filter.Has(v.Label) {
+				continue
+			}
+
+			panic("TODO: work out how to deal with sub-dependencies. I'm not sure how meaningful it is to encode sub-dependencies in a build matrix, unless you force everything to run serially")
+		}
+
+		names = append(names, c)
+	}
+
+	return fmt.Sprintf("[%s]\n", strings.Join(names, ", "))
+}

@@ -15,6 +15,7 @@ import (
 type diffOptions struct {
 	baseBranch    string
 	baseCommit    string
+	githubMatrix  bool
 	mainBranch    bool
 	rebuildStrong bool
 	dotHighlight  bool
@@ -54,7 +55,8 @@ func init() {
 	rootCmd.AddCommand(diffCmd)
 
 	diffCmd.Flags().StringVar(&diffOpts.baseBranch, "base-branch", "master", "Base branch to use for comparison")
-	diffCmd.Flags().StringVar(&diffOpts.baseCommit, "base-commit", "HEAD^1", "Base commit to compare with (useful in main-brahnch mode when using rebase merging)")
+	diffCmd.Flags().StringVar(&diffOpts.baseCommit, "base-commit", "HEAD^1", "Base commit to compare with (useful in main-branch mode when using rebase merging)")
+	diffCmd.Flags().BoolVar(&diffOpts.githubMatrix, "github-matrix", false, "Output a list that can be used as a Github Actions build matrix (`[a,b,c]`).")
 	diffCmd.Flags().BoolVar(&diffOpts.mainBranch, "main-branch", false, "Run in main branch mode (i.e. only compare with parent commit)")
 	diffCmd.Flags().BoolVar(&diffOpts.rebuildStrong, "rebuild-strong", false, "Include all strong dependencies of affected components")
 	diffCmd.Flags().BoolVar(&commonOpts.printDependencies, "dependencies", false, "Ouput the dependencies, not the build schedule")
@@ -85,6 +87,8 @@ func diffFn(cmd *cobra.Command, args []string) {
 	var format cli.OutputFormat
 	if commonOpts.dotFormat {
 		format = cli.Dot
+	} else if diffOpts.githubMatrix {
+		format = cli.GithubMatrix
 	} else {
 		format = cli.Text
 	}

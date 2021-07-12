@@ -61,6 +61,9 @@ var Text OutputFormat = 1
 // Dot is the DOT graph language, see https://graphviz.gitlab.io/_pages/doc/info/lang.html
 var Dot OutputFormat = 2
 
+// GithubMatrix is a build schedule output showing just the list of things to build as an array (`[a,b,c]`)
+var GithubMatrix OutputFormat = 3
+
 // OutputType holds the kind of output to show
 type OutputType int
 
@@ -91,6 +94,10 @@ func Format(dependencies graph.Graph, schedule graph.Graph, filter []string, opt
 
 	if opts.Format == Dot {
 		return schedule.DotSchedule(filter)
+	}
+
+	if opts.Format == GithubMatrix {
+		return schedule.GithubMatrix(filter)
 	}
 
 	if opts.Type == Dependencies {
