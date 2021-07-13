@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -156,5 +157,10 @@ func (g Graph) GithubMatrix(selection []string) string {
 		names = append(names, c)
 	}
 
-	return fmt.Sprintf("[%s]\n", strings.Join(names, ", "))
+	result, err := json.Marshal(names)
+	if err != nil {
+		panic(err)
+	}
+
+	return string(result) + "\n"
 }
