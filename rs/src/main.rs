@@ -1,8 +1,13 @@
+use structopt::StructOpt;
+
+mod cli;
 mod core;
 mod graph;
 mod read;
 mod write;
 
 fn main() {
-    println!("Hello, world!");
+    let opt = cli::Opts::from_args();
+
+    println!("{:?}", opt);
 }
