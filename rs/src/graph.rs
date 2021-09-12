@@ -4,13 +4,13 @@ use std::{
 };
 
 #[derive(PartialEq, Eq, Clone, Debug)]
-struct Edge<V, C>
+pub struct Edge<V, C>
 where
     V: Clone + PartialEq + Ord,
     C: Clone + Eq,
 {
-    to: V,
-    color: C,
+    pub to: V,
+    pub color: C,
 }
 
 impl<V, C> Edge<V, C>
@@ -18,7 +18,7 @@ where
     V: Clone + PartialEq + Ord,
     C: Clone + Eq,
 {
-    fn new(to: V, color: C) -> Self {
+    pub fn new(to: V, color: C) -> Self {
         Self { to, color }
     }
 }
@@ -44,12 +44,12 @@ where
 }
 
 #[derive(PartialEq, Debug)]
-struct Graph<V, C>
+pub struct Graph<V, C>
 where
     V: Clone + Ord,
     C: Clone + Eq,
 {
-    edges: BTreeMap<V, BTreeSet<Edge<V, C>>>,
+    pub edges: BTreeMap<V, BTreeSet<Edge<V, C>>>,
 }
 
 impl<V, C> Graph<V, C>
@@ -58,7 +58,7 @@ where
     C: Clone + Eq,
 {
     // Constructs a new graph from an adjacency list normalizing the graph.
-    fn new(graph: Vec<(V, Vec<Edge<V, C>>)>) -> Self {
+    pub fn new(graph: Vec<(V, Vec<Edge<V, C>>)>) -> Self {
         let mut edges = BTreeMap::new();
 
         for entry in graph {
@@ -149,11 +149,12 @@ where
                 edges.entry(v.clone()).or_insert_with(|| BTreeSet::new());
 
                 for e in es {
-                    if vertex_predicate(&e.to) && edge_predicate(&e.color) {
-                        edges
-                            .entry(v.clone())
-                            .or_insert_with(|| BTreeSet::new())
-                            .insert(e.clone());
+                    if vertex_predicate(&e.to) {
+                        let entry = edges.entry(v.clone()).or_insert_with(|| BTreeSet::new());
+
+                        if edge_predicate(&e.color) {
+                            entry.insert(e.clone());
+                        }
                     }
                 }
             }
