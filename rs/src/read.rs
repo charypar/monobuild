@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Display;
 
 use crate::{
     core::Dependency,
@@ -8,6 +9,14 @@ use crate::{
 #[derive(PartialEq, Debug)]
 pub enum Warning {
     Unknown(String, String), // dependent, dependency
+}
+
+impl Display for Warning {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Warning::Unknown(of, what) => write!(f, "Unknown dependency {} of {}.", what, of),
+        }
+    }
 }
 
 fn manifest(manifest: &str) -> BTreeSet<Edge<String, Dependency>> {
@@ -50,7 +59,7 @@ pub fn manifests(manifests: BTreeMap<String, String>) -> (Graph<String, Dependen
     (Graph { edges }, warnings)
 }
 
-pub fn read_repo_manifest(manifest: String) -> Graph<String, Dependency> {
+pub fn repo_manifest(manifest: String) -> Graph<String, Dependency> {
     todo!();
 }
 
