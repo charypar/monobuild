@@ -9,9 +9,10 @@ mod graph;
 mod read;
 mod write;
 
+use crate::{core::Dependency, write::DotFormat};
 use cli::{Command, DiffOpts, InputOpts, Opts, OutputOpts};
+use write::TextFormat;
 
-use crate::write::TextFormat;
 fn main() {
     let opts = Opts::from_args();
     let result = match opts.cmd {
@@ -32,32 +33,55 @@ fn main() {
 }
 
 fn print(input_opts: InputOpts, output_opts: OutputOpts) -> io::Result<String> {
-    let dependencies = if let Some(path) = input_opts.full_manifest {
+    let (graph, warnings) = if let Some(path) = input_opts.full_manifest {
         let content = fs::read_to_string(path)?;
         read::repo_manifest(content)
     } else {
         let manifests = read_manifest_files(input_opts.dependency_files_glob)?;
-        let (deps, warnings) = read::manifests(manifests);
-
-        // print warnings
-        for warning in warnings {
-            eprint!("{}", warning);
-        }
-
-        deps
+        read::manifests(manifests)
     };
 
-    // TODO Scope
+    // print warnings
+    for warning in warnings {
+        eprint!("{}", warning);
+    }
 
-    // Print in format
-    let format = if output_opts.full {
-        TextFormat::Full
+    if output_opts.full {
+        return Ok(format!("{}", write::to_text(&graph, TextFormat::Full)));
+    }
+
+    let graph = if output_opts.top_level {
+        let roots = graph.roots();
+
+        graph.filter(|v| roots.contains(v), |_| true)
     } else {
-        TextFormat::Simple
+        graph
     };
-    let out = write::to_text(&dependencies, format);
 
-    Ok(format!("{}", out))
+    let (graph, dot_format) = if !output_opts.dependencies {
+        (
+            graph.filter(|_| true, |d| d == &Dependency::Strong),
+            DotFormat::Schedule,
+        )
+    } else {
+        (graph, DotFormat::Dependencies)
+    };
+
+    let graph = if let Some(scope) = output_opts.scope {
+        let root = vec![scope.clone()].into_iter().collect();
+        let mut tree_vertices = graph.descendants(&root);
+        tree_vertices.insert(&scope);
+
+        graph.filter(|v| tree_vertices.contains(v), |_| true)
+    } else {
+        graph
+    };
+
+    if output_opts.dot {
+        return Ok(format!("{}", write::to_dot(&graph, dot_format)));
+    }
+
+    Ok(format!("{}", write::to_text(&graph, TextFormat::Simple)))
 }
 
 fn diff(opts: DiffOpts) -> io::Result<String> {

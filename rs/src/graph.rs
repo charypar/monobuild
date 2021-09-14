@@ -162,6 +162,18 @@ where
 
         Graph { edges }
     }
+
+    pub fn roots(&self) -> BTreeSet<&V> {
+        let mut result = self.vertices();
+
+        for (_, es) in &self.edges {
+            for e in es {
+                result.remove(&e.to);
+            }
+        }
+
+        result
+    }
 }
 
 #[cfg(test)]

@@ -8,13 +8,15 @@ use crate::{
 
 #[derive(PartialEq, Debug)]
 pub enum Warning {
-    Unknown(String, String), // dependent, dependency
+    Unknown(String, String),      // dependent, dependency
+    BadLineFormat(usize, String), // line number, line
 }
 
 impl Display for Warning {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Warning::Unknown(of, what) => write!(f, "Unknown dependency {} of {}.", what, of),
+            Warning::BadLineFormat(l, line) => write!(f, "Bad line format: {}: '{}' expected 'component: dependency, dependency, dependency, ...", l, line),
         }
     }
 }
@@ -31,11 +33,14 @@ fn manifest(manifest: &str) -> BTreeSet<Edge<String, Dependency>> {
         .collect()
 }
 
+// TODO consider building a safer mutable graph API for adding vertices and edges while keeping the graph
+// normalised instead of building graphs up manually
+
 pub fn manifests(manifests: BTreeMap<String, String>) -> (Graph<String, Dependency>, Vec<Warning>) {
     let components: BTreeSet<_> = manifests.keys().collect();
 
     let mut edges = BTreeMap::new();
-    let mut warnings: Vec<Warning> = Vec::new();
+    let mut warnings = Vec::new();
 
     for (c, m) in &manifests {
         let (deps, ws): (BTreeSet<_>, BTreeSet<_>) = manifest(m)
@@ -59,8 +64,47 @@ pub fn manifests(manifests: BTreeMap<String, String>) -> (Graph<String, Dependen
     (Graph { edges }, warnings)
 }
 
-pub fn repo_manifest(manifest: String) -> Graph<String, Dependency> {
-    todo!();
+pub fn repo_manifest(manifest: String) -> (Graph<String, Dependency>, Vec<Warning>) {
+    let mut graph = BTreeMap::new();
+    let mut warnings = Vec::new();
+
+    let lines = manifest
+        .lines()
+        .map(|l| l.trim())
+        .filter(|l| !l.starts_with("#") && *l != "")
+        .enumerate();
+
+    for (i, line) in lines {
+        if let Some((c, ds)) = line.split_once(":") {
+            let component = c.trim().to_owned();
+            let mut dependencies: BTreeSet<_> = ds
+                .trim()
+                .split(",")
+                .map(|d| d.trim())
+                .filter(|d| *d != "")
+                .map(|d| {
+                    if d.starts_with("!") {
+                        Edge::new(d[1..].to_owned(), Dependency::Strong)
+                    } else {
+                        Edge::new(d.to_owned(), Dependency::Weak)
+                    }
+                })
+                .collect();
+
+            for d in &dependencies {
+                graph.entry(d.to.clone()).or_insert_with(|| BTreeSet::new());
+            }
+
+            graph
+                .entry(component)
+                .or_insert_with(|| BTreeSet::new())
+                .append(&mut dependencies);
+        } else {
+            warnings.push(Warning::BadLineFormat(i, line.to_owned()));
+        }
+    }
+
+    (Graph { edges: graph }, warnings)
 }
 
 #[cfg(test)]
@@ -240,6 +284,110 @@ mod test {
             );
 
             assert_eq!(actual, expected);
+        }
+    }
+
+    mod repo_manifest {
+        use super::super::*;
+        use crate::graph::Graph;
+
+        #[test]
+        fn empty_manifest() {
+            let manifest = "".into();
+
+            let (actual, _) = repo_manifest(manifest);
+            let expected = Graph::new(vec![]);
+
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn single_component() {
+            let manifest = "lib1:".into();
+
+            let (actual, _) = repo_manifest(manifest);
+            let expected = Graph::new(vec![("lib1".into(), vec![])]);
+
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn component_with_depednency() {
+            let manifest = "lib1: lib2\nlib2:".into();
+
+            let (actual, _) = repo_manifest(manifest);
+            let expected = Graph::new(vec![
+                (
+                    "lib1".into(),
+                    vec![Edge::new("lib2".into(), Dependency::Weak)],
+                ),
+                ("lib2".into(), vec![]),
+            ]);
+
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn component_with_mutlitple_depednencies() {
+            let manifest = "lib1: lib2, lib3\nlib2: \nlib3: ".into();
+
+            let (actual, _) = repo_manifest(manifest);
+            let expected = Graph::new(vec![(
+                "lib1".into(),
+                vec![
+                    Edge::new("lib2".into(), Dependency::Weak),
+                    Edge::new("lib3".into(), Dependency::Weak),
+                ],
+            )]); // Note that 'new' normalises the graph!
+
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn component_with_unlisted_dependency() {
+            let manifest = "lib1: lib2, lib3\n".into();
+
+            let (actual, _) = repo_manifest(manifest);
+            let expected = Graph::new(vec![(
+                "lib1".into(),
+                vec![
+                    Edge::new("lib2".into(), Dependency::Weak),
+                    Edge::new("lib3".into(), Dependency::Weak),
+                ],
+            )]); // Note that 'new' normalises the graph!
+
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn complex_manifest() {
+            let manifest = "# comment\napp1: lib1, lib2, lib3\napp2: \nlib1: \nlib2: lib3\nlib3: \n\nstack1: !app1, !app2".to_owned();
+
+            let (actual, ws) = repo_manifest(manifest);
+            let expected = Graph::new(vec![
+                (
+                    "app1".into(),
+                    vec![
+                        Edge::new("lib1".into(), Dependency::Weak),
+                        Edge::new("lib2".into(), Dependency::Weak),
+                        Edge::new("lib3".into(), Dependency::Weak),
+                    ],
+                ),
+                (
+                    "lib2".into(),
+                    vec![Edge::new("lib3".into(), Dependency::Weak)],
+                ),
+                (
+                    "stack1".into(),
+                    vec![
+                        Edge::new("app1".into(), Dependency::Strong),
+                        Edge::new("app2".into(), Dependency::Strong),
+                    ],
+                ),
+            ]);
+
+            assert_eq!(actual, expected);
+            assert_eq!(ws, vec![]);
         }
     }
 }
