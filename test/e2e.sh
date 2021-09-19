@@ -121,9 +121,9 @@ libs/one: libs/three
 libs/three: 
 libs/two: libs/three
 one: libs/one, libs/two
-stack: !one, !two, !three
+stack: !one, !three, !two
 three: libs/three
-two: libs/two, libs/three"
+two: libs/three, libs/two"
 
 assert_eq "monobuild print -f dependencies.mb --full" "$actual" "$expected"
 
