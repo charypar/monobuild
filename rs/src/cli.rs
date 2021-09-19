@@ -1,7 +1,7 @@
 use structopt::StructOpt;
 
 #[derive(Debug)]
-enum Source {
+pub enum Source {
     Stdin,
     Git,
 }
@@ -56,29 +56,29 @@ pub struct OutputOpts {
 pub struct DiffOpts {
     /// "Base branch to use o comparison"
     #[structopt(long, default_value = "master")]
-    base_branch: String,
+    pub base_branch: String,
 
     /// Base commit to compare with (useful in main-branch mode when using rebase merging)
     #[structopt(long, default_value = "HEAD^1")]
-    base_commit: String,
+    pub base_commit: String,
 
     /// Run in main branch mode (i.e. only compare with parent commit)
     #[structopt(long)]
-    main_branch: bool,
+    pub main_branch: bool,
 
     /// Include all strong dependencies of affected components
     #[structopt(long)]
-    rebuild_strong: bool,
+    pub rebuild_strong: bool,
 
     // FIXME this seems really hacky, there's got to be a better way
     /// Read changed files from STDIN
     #[structopt(name = "-", default_value = "", parse(from_str = parse_stdin))]
-    changes: Source,
+    pub changes: Source,
 
     #[structopt(flatten)]
-    input_opts: InputOpts,
+    pub input_opts: InputOpts,
     #[structopt(flatten)]
-    output_opts: OutputOpts,
+    pub output_opts: OutputOpts,
 }
 
 #[derive(StructOpt, Debug)]

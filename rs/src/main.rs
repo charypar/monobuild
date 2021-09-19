@@ -5,12 +5,16 @@ use structopt::StructOpt;
 
 mod cli;
 mod core;
+mod git;
 mod graph;
 mod read;
 mod write;
 
 use crate::{core::Dependency, write::DotFormat};
 use cli::{Command, DiffOpts, InputOpts, Opts, OutputOpts};
+use git::{Git, Mode};
+use graph::Graph;
+use read::Warning;
 use write::TextFormat;
 
 fn main() {
@@ -33,15 +37,7 @@ fn main() {
 }
 
 fn print(input_opts: InputOpts, output_opts: OutputOpts) -> io::Result<String> {
-    let (graph, warnings) = if let Some(path) = input_opts.full_manifest {
-        let content = fs::read_to_string(path)?;
-        read::repo_manifest(content)
-    } else {
-        let manifests = read_manifest_files(input_opts.dependency_files_glob)?;
-        read::manifests(manifests)
-    };
-
-    // print warnings
+    let (graph, warnings) = load_graph(input_opts)?;
     for warning in warnings {
         eprint!("{}", warning);
     }
@@ -85,7 +81,67 @@ fn print(input_opts: InputOpts, output_opts: OutputOpts) -> io::Result<String> {
 }
 
 fn diff(opts: DiffOpts) -> io::Result<String> {
-    todo!()
+    let (graph, warnings) = load_graph(opts.input_opts)?;
+    for warning in warnings {
+        eprint!("{}", warning);
+    }
+
+    let mut git = Git::new(|cmd| {
+        let prog = &cmd[0];
+        let args = &cmd[1..];
+
+        let out = process::Command::new(prog).args(args).output()?;
+
+        if out.status.success() {
+            std::str::from_utf8(&out.stdout)
+                .map(|s| s.to_string())
+                .map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::Other, // FIXME this is ugly, use Anyhow
+                        format!("Output not utf8 {:?}", &out.stdout),
+                    )
+                })
+        } else {
+            let err = std::str::from_utf8(&out.stdout)
+                .map(|s| s.to_string())
+                .map_err(|_| {
+                    io::Error::new(
+                        io::ErrorKind::Other, // FIXME this is ugly, use Anyhow
+                        format!(
+                            "Command execution failed with non-utf8 output: {:?}",
+                            &out.stdout
+                        ),
+                    )
+                })?;
+
+            Err(io::Error::new(
+                io::ErrorKind::Other, // FIXME this is ugly, use Anyhow
+                format!("Command execution failed: {}", err),
+            ))
+        }
+    });
+
+    let mode = if opts.main_branch {
+        Mode::Main(opts.base_branch)
+    } else {
+        Mode::Feature(opts.base_commit)
+    };
+
+    let changed = git.diff(mode).expect("Fix this error handling AAAH");
+
+    Ok(changed.join("\n"))
+}
+
+// Input processing
+
+fn load_graph(input_opts: InputOpts) -> io::Result<(Graph<String, Dependency>, Vec<Warning>)> {
+    if let Some(path) = input_opts.full_manifest {
+        let content = fs::read_to_string(path)?;
+        Ok(read::repo_manifest(content))
+    } else {
+        let manifests = read_manifest_files(input_opts.dependency_files_glob)?;
+        Ok(read::manifests(manifests))
+    }
 }
 
 fn read_manifest_files(glob: String) -> io::Result<BTreeMap<String, String>> {
