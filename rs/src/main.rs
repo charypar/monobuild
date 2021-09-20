@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, fs, io, process};
+use std::collections::{BTreeMap, BTreeSet};
+use std::fs;
+use std::io::{self, BufRead};
+use std::path::Path;
+use std::process;
 
 use anyhow::{anyhow, Result};
 use ignore::WalkBuilder;
@@ -87,17 +91,51 @@ fn diff(opts: DiffOpts) -> Result<String> {
         eprint!("{}", warning);
     }
 
-    let mut git = Git::new(execute);
+    let components: Vec<&Path> = graph
+        .vertices()
+        .into_iter()
+        .map(|path| Path::new(path))
+        .collect();
 
-    let mode = if opts.main_branch {
-        Mode::Main(opts.base_branch)
-    } else {
-        Mode::Feature(opts.base_commit)
-    };
+    // Get changed files
 
-    let changed = git.diff(mode)?;
+    let changed: BTreeSet<String> = match opts.changes {
+        cli::Source::Stdin => io::stdin().lock().lines().flatten().collect(),
+        cli::Source::Git => {
+            let mut git = Git::new(execute);
 
-    Ok(changed.join("\n"))
+            let mode = if opts.main_branch {
+                Mode::Main(opts.base_branch)
+            } else {
+                Mode::Feature(opts.base_commit)
+            };
+
+            git.diff(mode)?
+        }
+    }
+    .into_iter()
+    .filter_map(|file_path| {
+        // TODO Filter down to changed components
+        let file_path = Path::new(&file_path);
+        for component in &components {
+            if file_path.starts_with(component) {
+                return component.to_str().map(|s| s.to_owned());
+            }
+        }
+
+        None
+    })
+    .collect();
+
+    // Get impaced subgraph
+    let impact_graph = graph.reverse();
+    let affected = impact_graph.descendants(&changed);
+    let graph = graph.filter(
+        |v| affected.contains(v) || changed.contains(v),
+        |e| *e == Dependency::Strong,
+    );
+
+    Ok(format!("{}", write::to_text(&graph, TextFormat::Simple)))
 }
 
 fn execute(command: Vec<String>) -> Result<String, String> {

@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display, io};
+use std::{error::Error, fmt::Display};
 
 pub type Commit = String;
 pub type Command = Vec<String>;
@@ -89,8 +89,6 @@ where
 #[cfg(test)]
 mod test {
     mod diff_base {
-        use std::io;
-
         use super::super::*;
 
         #[test]
@@ -140,8 +138,6 @@ mod test {
     }
 
     mod diff {
-        use std::io;
-
         use super::super::*;
 
         #[test]
