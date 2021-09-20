@@ -1,5 +1,6 @@
 use std::{collections::BTreeMap, fs, io, process};
 
+use anyhow::{anyhow, Result};
 use ignore::WalkBuilder;
 use structopt::StructOpt;
 
@@ -36,7 +37,7 @@ fn main() {
     }
 }
 
-fn print(input_opts: InputOpts, output_opts: OutputOpts) -> io::Result<String> {
+fn print(input_opts: InputOpts, output_opts: OutputOpts) -> Result<String> {
     let (graph, warnings) = load_graph(input_opts)?;
     for warning in warnings {
         eprint!("{}", warning);
@@ -80,46 +81,13 @@ fn print(input_opts: InputOpts, output_opts: OutputOpts) -> io::Result<String> {
     Ok(format!("{}", write::to_text(&graph, TextFormat::Simple)))
 }
 
-fn diff(opts: DiffOpts) -> io::Result<String> {
+fn diff(opts: DiffOpts) -> Result<String> {
     let (graph, warnings) = load_graph(opts.input_opts)?;
     for warning in warnings {
         eprint!("{}", warning);
     }
 
-    let mut git = Git::new(|cmd| {
-        let prog = &cmd[0];
-        let args = &cmd[1..];
-
-        let out = process::Command::new(prog).args(args).output()?;
-
-        if out.status.success() {
-            std::str::from_utf8(&out.stdout)
-                .map(|s| s.to_string())
-                .map_err(|_| {
-                    io::Error::new(
-                        io::ErrorKind::Other, // FIXME this is ugly, use Anyhow
-                        format!("Output not utf8 {:?}", &out.stdout),
-                    )
-                })
-        } else {
-            let err = std::str::from_utf8(&out.stdout)
-                .map(|s| s.to_string())
-                .map_err(|_| {
-                    io::Error::new(
-                        io::ErrorKind::Other, // FIXME this is ugly, use Anyhow
-                        format!(
-                            "Command execution failed with non-utf8 output: {:?}",
-                            &out.stdout
-                        ),
-                    )
-                })?;
-
-            Err(io::Error::new(
-                io::ErrorKind::Other, // FIXME this is ugly, use Anyhow
-                format!("Command execution failed: {}", err),
-            ))
-        }
-    });
+    let mut git = Git::new(execute);
 
     let mode = if opts.main_branch {
         Mode::Main(opts.base_branch)
@@ -127,14 +95,34 @@ fn diff(opts: DiffOpts) -> io::Result<String> {
         Mode::Feature(opts.base_commit)
     };
 
-    let changed = git.diff(mode).expect("Fix this error handling AAAH");
+    let changed = git.diff(mode)?;
 
     Ok(changed.join("\n"))
 }
 
+fn execute(command: Vec<String>) -> Result<String, String> {
+    let prog = &command[0];
+    let args = &command[1..];
+
+    let out = process::Command::new(prog)
+        .args(args)
+        .output()
+        .map_err(|e| format!("Git call failed: {}", e))?;
+
+    if out.status.success() {
+        std::str::from_utf8(&out.stdout)
+            .map(|s| s.to_string())
+            .map_err(|e| format!("Could not convert git output to string: {}", e))
+    } else {
+        std::str::from_utf8(&out.stdout)
+            .map(|s| s.to_string())
+            .map_err(|e| format!("Could not convert git output to string: {}", e))
+    }
+}
+
 // Input processing
 
-fn load_graph(input_opts: InputOpts) -> io::Result<(Graph<String, Dependency>, Vec<Warning>)> {
+fn load_graph(input_opts: InputOpts) -> Result<(Graph<String, Dependency>, Vec<Warning>)> {
     if let Some(path) = input_opts.full_manifest {
         let content = fs::read_to_string(path)?;
         Ok(read::repo_manifest(content))
@@ -144,7 +132,7 @@ fn load_graph(input_opts: InputOpts) -> io::Result<(Graph<String, Dependency>, V
     }
 }
 
-fn read_manifest_files(glob: String) -> io::Result<BTreeMap<String, String>> {
+fn read_manifest_files(glob: String) -> Result<BTreeMap<String, String>> {
     let pattern = glob::Pattern::new(&glob).expect("Malformed manifest search pattern"); // FIXME handle this better
 
     let manifests: BTreeMap<String, String> = WalkBuilder::new("./")
@@ -152,15 +140,17 @@ fn read_manifest_files(glob: String) -> io::Result<BTreeMap<String, String>> {
         .build()
         .filter_map(|r| r.ok())
         .filter(|entry| pattern.matches_path(entry.path()))
-        .flat_map(|manifest| -> io::Result<(String, String)> {
+        .flat_map(|manifest| -> Result<_> {
             let path = manifest.path();
-            let component = path
+            let component = manifest
+                .path()
                 .parent()
-                .expect("cannot find a manifests directory path")
-                .to_str()
-                .expect("Cannot convert path to string")
-                .trim_start_matches("./")
-                .to_owned();
+                .ok_or(anyhow!("cannot find a directory path for: {:?}", path))
+                .and_then(|dir| {
+                    dir.to_str()
+                        .ok_or(anyhow!("Cannot convert path to string: {:?}", dir))
+                })
+                .map(|component_path| component_path.trim_start_matches("./").to_owned())?;
 
             let manifest_content = fs::read_to_string(path)?;
 

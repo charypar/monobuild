@@ -1,4 +1,4 @@
-use std::io;
+use std::{error::Error, fmt::Display, io};
 
 pub type Commit = String;
 pub type Command = Vec<String>;
@@ -13,10 +13,24 @@ pub enum GitError {
     MergeBase(String, String), // base branch, error
     Diff(String),              // error
 }
+impl Error for GitError {}
+
+impl Display for GitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GitError::MergeBase(base_branch, error) => write!(
+                f,
+                "Cannot find merge base with branch {}: {}",
+                base_branch, error
+            ),
+            GitError::Diff(error) => write!(f, "Finding changed files failed: {}", error),
+        }
+    }
+}
 
 pub struct Git<Executor>
 where
-    Executor: FnMut(Command) -> io::Result<String>,
+    Executor: FnMut(Command) -> Result<String, String>,
 {
     // Inversion of control for command execution to make Git pure
     // and easier to test
@@ -25,7 +39,7 @@ where
 
 impl<Executor> Git<Executor>
 where
-    Executor: FnMut(Command) -> io::Result<String>,
+    Executor: FnMut(Command) -> Result<String, String>,
 {
     pub fn new(executor: Executor) -> Self {
         Self { executor }
@@ -89,7 +103,7 @@ mod test {
                 "HEAD".into(),
             ]);
 
-            let mock_exec = |cmd: Command| -> io::Result<String> {
+            let mock_exec = |cmd: Command| -> Result<String, String> {
                 actual_command = Some(cmd);
 
                 Ok("abc\n".to_string()) // check new line is trimmed
@@ -109,7 +123,7 @@ mod test {
             let mut actual_command: Option<Command> = None;
             let expected_command = None;
 
-            let mock_exec = |cmd: Command| -> io::Result<String> {
+            let mock_exec = |cmd: Command| -> Result<String, String> {
                 actual_command = Some(cmd);
 
                 Ok("abc\n".to_string())
@@ -142,7 +156,7 @@ mod test {
                 "main".into(),
             ];
 
-            let mock_exec = |cmd: Command| -> io::Result<String> {
+            let mock_exec = |cmd: Command| -> Result<String, String> {
                 actual_commands.push(cmd);
 
                 if actual_commands.len() < 2 {
@@ -177,7 +191,7 @@ mod test {
                 "HEAD^1".into(),
             ];
 
-            let mock_exec = |cmd: Command| -> io::Result<String> {
+            let mock_exec = |cmd: Command| -> Result<String, String> {
                 actual_commands.push(cmd);
 
                 Ok("one\ntwo\nthree\n".to_string())
