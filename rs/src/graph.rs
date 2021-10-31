@@ -1,178 +1,648 @@
-use std::{
-    cmp,
-    collections::{BTreeMap, BTreeSet},
-};
+use std::collections::{btree_set, BTreeMap, BTreeSet};
+use std::fmt::Debug;
+use std::{iter, slice};
 
-#[derive(PartialEq, Eq, Clone, Debug)]
-pub struct Edge<V, C>
+pub trait Vertex: PartialEq + Clone {}
+impl<T> Vertex for T where T: PartialEq + Clone {}
+pub trait Edge: PartialEq + Ord + Copy {}
+impl<T> Edge for T where T: PartialEq + Ord + Copy {}
+
+pub struct Graph<V, E>
 where
-    V: Clone + PartialEq + Ord,
-    C: Clone + Eq,
+    V: Vertex,
+    E: Edge,
 {
-    pub to: V,
-    pub color: C,
+    vertices: Vec<V>,                 // vertex index -> V
+    edges: Vec<BTreeSet<(usize, E)>>, // vertex index -> {(vertex index, E)}
 }
 
-impl<V, C> Edge<V, C>
+impl<V, E> Graph<V, E>
 where
-    V: Clone + PartialEq + Ord,
-    C: Clone + Eq,
+    V: Vertex,
+    E: Edge,
 {
-    pub fn new(to: V, color: C) -> Self {
-        Self { to, color }
+    pub fn new() -> Self {
+        Graph {
+            vertices: vec![],
+            edges: vec![],
+        }
     }
-}
 
-impl<V, C> cmp::PartialOrd for Edge<V, C>
-where
-    V: Clone + Ord,
-    C: Clone + Eq,
-{
-    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
-        Some(self.to.cmp(&other.to))
+    // Iterate over graph or vertices
+
+    pub fn vertices<'g>(&'g self) -> Vertices<'g, '_, V> {
+        Vertices {
+            iter: self.vertices.iter().enumerate(),
+            mask: None,
+        }
     }
-}
 
-impl<V, C> cmp::Ord for Edge<V, C>
-where
-    V: Clone + Ord,
-    C: Clone + Eq,
-{
-    fn cmp(&self, other: &Self) -> cmp::Ordering {
-        self.to.cmp(&other.to)
+    pub fn iter<'g>(&'g self) -> GraphIter<'g, '_, V, E> {
+        GraphIter {
+            graph: self,
+            iter: self.vertices.iter().enumerate(),
+            masks: None,
+        }
     }
-}
 
-#[derive(PartialEq, Debug)]
-pub struct Graph<V, C>
-where
-    V: Clone + Ord,
-    C: Clone + Eq,
-{
-    pub edges: BTreeMap<V, BTreeSet<Edge<V, C>>>,
-}
+    // Scope graph
 
-impl<V, C> Graph<V, C>
-where
-    V: Clone + Ord,
-    C: Clone + Eq,
-{
-    // Constructs a new graph from an adjacency list normalizing the graph.
-    pub fn new(graph: Vec<(V, Vec<Edge<V, C>>)>) -> Self {
-        let mut edges = BTreeMap::new();
+    pub fn roots<'g>(&'g self) -> Subgraph<'g, V, E> {
+        let mut vertex_mask: Vec<_> = iter::repeat(true).take(self.vertices.len()).collect();
 
-        for entry in graph {
-            // Ensure each vertex has a key in the edges map
-            for edge in &entry.1 {
-                edges
-                    .entry(edge.to.clone())
-                    .or_insert_with(|| BTreeSet::new());
-            }
-
-            // Insert all the edges
-            let vertex = edges.entry(entry.0).or_insert_with(|| BTreeSet::new());
-            for edge in entry.1 {
-                vertex.insert(edge);
+        // Remove all vertices with an incoming edge
+        for edgs in &self.edges {
+            for (to, _) in edgs {
+                vertex_mask[*to] = false;
             }
         }
 
-        Self { edges }
-    }
+        // Remove edges using the mask we just made
+        let edge_mask = (0..self.vertices.len())
+            .flat_map(|from| {
+                self.edges
+                    .get(from)
+                    .expect("edges to exist")
+                    .iter()
+                    .map(move |(to, _)| (from, *to))
+            })
+            .filter(|(from, to)| vertex_mask[*from] && vertex_mask[*to])
+            .collect();
 
-    pub fn vertices(&self) -> BTreeSet<&V> {
-        self.edges.keys().collect()
-    }
-
-    pub fn children(&self, vertices: &BTreeSet<V>) -> BTreeSet<&V> {
-        vertices
-            .iter()
-            .flat_map(|v| self.edges.get(v))
-            .flatten()
-            .map(|e| &e.to)
-            .collect()
-    }
-
-    pub fn descendants(&self, vertices: &BTreeSet<V>) -> BTreeSet<&V> {
-        let mut result = self.children(&vertices);
-        // newly discovered vertices
-        let mut front = result.clone();
-
-        loop {
-            // FIXME refactor descendants in terms of children without introducing cloning
-            front = front
-                .iter()
-                .flat_map(|v| self.edges.get(v))
-                .flatten()
-                .map(|e| &e.to)
-                .filter(|v| !result.contains(v))
-                .collect();
-
-            if front.is_empty() {
-                break;
-            }
-
-            // add discovered vertices to the results
-            for vertex in &front {
-                result.insert(vertex);
-            }
+        Subgraph {
+            graph: self,
+            vertex_mask,
+            edge_mask,
         }
-
-        result
     }
 
-    pub fn reverse(&self) -> Graph<V, C> {
-        let mut edges = BTreeMap::new();
-
-        for (v, es) in &self.edges {
-            edges.entry(v.clone()).or_insert_with(|| BTreeSet::new());
-
-            for e in es {
-                edges
-                    .entry(e.to.clone())
-                    .or_insert_with(|| BTreeSet::new())
-                    .insert(Edge::new(v.clone(), e.color.clone()));
-            }
-        }
-
-        Graph { edges }
-    }
-
-    pub fn filter<VP, EP>(&self, vertex_predicate: VP, edge_predicate: EP) -> Graph<V, C>
+    // Removes vertices and associated edges
+    pub fn filter_vertices<'g, P>(&'g self, predicate: P) -> Subgraph<'g, V, E>
     where
-        VP: Fn(&V) -> bool,
-        EP: Fn(&C) -> bool,
+        P: Fn(&V) -> bool,
     {
-        let mut edges = BTreeMap::new();
+        // Remove vertices
+        let vertex_mask: Vec<bool> = self.vertices.iter().map(|v| predicate(v)).collect();
 
-        for (v, es) in &self.edges {
-            if vertex_predicate(&v) {
-                edges.entry(v.clone()).or_insert_with(|| BTreeSet::new());
+        // Remove edges using the mask we just made
+        let edge_mask = (0..self.vertices.len())
+            .flat_map(|from| {
+                self.edges
+                    .get(from)
+                    .expect("edges to exist")
+                    .iter()
+                    .map(move |(to, _)| (from, *to))
+            })
+            .filter(|(from, to)| vertex_mask[*from] && vertex_mask[*to])
+            .collect();
 
-                for e in es {
-                    if vertex_predicate(&e.to) {
-                        let entry = edges.entry(v.clone()).or_insert_with(|| BTreeSet::new());
+        Subgraph {
+            graph: self,
+            vertex_mask,
+            edge_mask,
+        }
+    }
 
-                        if edge_predicate(&e.color) {
-                            entry.insert(e.clone());
-                        }
-                    }
+    // Removes edges but keeps vertices alone
+    pub fn filter_edges<'g, P>(&'g self, predicate: P) -> Subgraph<'g, V, E>
+    where
+        P: Fn(&E) -> bool,
+    {
+        let vertex_mask = iter::repeat(true).take(self.vertices.len()).collect();
+        let edge_mask = (0..self.vertices.len())
+            .flat_map(|from| {
+                self.edges
+                    .get(from)
+                    .expect("edges to exist")
+                    .iter()
+                    .map(move |(to, label)| (from, *to, label))
+            })
+            .filter_map(|(from, to, label)| {
+                if predicate(label) {
+                    Some((from, to))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Subgraph {
+            graph: self,
+            vertex_mask,
+            edge_mask,
+        }
+    }
+
+    // Transform graph
+
+    pub fn reverse(&self) -> Self {
+        let vertices = self.vertices.clone();
+        let mut edges: Vec<_> = iter::repeat_with(|| BTreeSet::new())
+            .take(vertices.len())
+            .collect();
+
+        for (to, edgs) in self.edges.iter().enumerate() {
+            for (from, label) in edgs {
+                edges[*from].insert((to, *label));
+            }
+        }
+
+        Graph { vertices, edges }
+    }
+}
+
+impl<V, E> Debug for Graph<V, E>
+where
+    V: Vertex + Debug,
+    E: Edge + Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let edges: Vec<_> = self
+            .edges
+            .iter()
+            .enumerate()
+            .flat_map(|(fi, es)| {
+                es.iter()
+                    .map(move |(ti, l)| (self.vertices[fi].clone(), self.vertices[*ti].clone(), l))
+            })
+            .collect();
+
+        f.debug_struct("Graph")
+            .field("vertices", &self.vertices)
+            .field("edges", &edges)
+            .finish()
+    }
+}
+
+// Construct a graph from adjacency list
+impl<Adj, Edg, V, E> From<Adj> for Graph<V, E>
+where
+    Adj: IntoIterator<Item = (V, Edg)>,
+    Edg: IntoIterator<Item = (V, E)>,
+    V: Vertex + Ord,
+    E: Edge,
+{
+    fn from(graph: Adj) -> Self {
+        // Make a local copy to allow multiple passes
+        let graph: Vec<(V, BTreeSet<_>)> = graph
+            .into_iter()
+            .map(|(v, es)| (v, es.into_iter().collect()))
+            .collect();
+
+        // Find and insert all the vertices, sorted using Ord
+        let mut vertices: BTreeSet<V> = BTreeSet::new();
+        for (from, edg) in &graph {
+            vertices.insert(from.clone());
+
+            for (to, _) in edg.into_iter() {
+                vertices.insert(to.clone());
+            }
+        }
+
+        // Index and reverse index them
+        let vertices: Vec<_> = vertices.into_iter().collect();
+        let vertex_index: BTreeMap<V, usize> = vertices
+            .iter()
+            .enumerate()
+            .map(|(i, v)| (v.clone(), i))
+            .collect();
+
+        // Allocate edge mapping
+        let mut edges: Vec<_> = iter::repeat_with(|| BTreeSet::new())
+            .take(vertices.len())
+            .collect();
+
+        // Insert all the edges
+        for (from, edg) in graph {
+            let from_idx = *vertex_index.get(&from).expect("a vertex to exist");
+            let edges_from = edges.get_mut(from_idx).expect("an edge set to exist");
+
+            for (to, label) in edg {
+                let to_idx = *vertex_index.get(&to).expect("a vertex to exist");
+
+                edges_from.insert((to_idx, label));
+            }
+        }
+
+        Graph { vertices, edges }
+    }
+}
+
+pub struct Subgraph<'g, V, E>
+where
+    V: Vertex + 'g,
+    E: Edge,
+{
+    graph: &'g Graph<V, E>,
+    vertex_mask: Vec<bool>,
+    edge_mask: BTreeSet<(usize, usize)>,
+}
+
+impl<'g, V, E> Subgraph<'g, V, E>
+where
+    V: Vertex + 'g,
+    E: Edge,
+{
+    // Inspect graph
+
+    pub fn iter<'s>(&'s self) -> GraphIter<'g, 's, V, E> {
+        GraphIter {
+            graph: self.graph,
+            iter: self.graph.vertices.iter().enumerate(),
+            masks: Some((&self.vertex_mask, &self.edge_mask)),
+        }
+    }
+
+    pub fn vertices<'s>(&'s self) -> Vertices<'g, 's, V> {
+        Vertices {
+            iter: self.graph.vertices.iter().enumerate(),
+            mask: Some(&self.vertex_mask),
+        }
+    }
+
+    pub fn roots(&self) -> Subgraph<'g, V, E> {
+        let mut vertex_mask: Vec<_> = iter::repeat(true).take(self.vertex_mask.len()).collect();
+
+        // Remove all vertices with an incoming edge
+        for (from, edgs) in self.graph.edges.iter().enumerate() {
+            for (to, _) in edgs {
+                if self.edge_mask.contains(&(from, *to)) || !self.vertex_mask[*to] {
+                    vertex_mask[*to] = false;
                 }
             }
         }
 
-        Graph { edges }
+        // Remove edges using the mask we just made
+        let edge_mask = (0..self.graph.vertices.len())
+            .flat_map(|from| {
+                self.graph
+                    .edges
+                    .get(from)
+                    .expect("edges to exist")
+                    .iter()
+                    .map(move |(to, _)| (from, *to))
+            })
+            .filter(|(from, to)| {
+                vertex_mask[*from] && vertex_mask[*to] && self.edge_mask.contains(&(*from, *to))
+            })
+            .collect();
+
+        Subgraph {
+            graph: self.graph,
+            vertex_mask,
+            edge_mask,
+        }
     }
 
-    pub fn roots(&self) -> BTreeSet<&V> {
-        let mut result = self.vertices();
+    // Removes vertices and associated edges
+    pub fn filter_vertices<P>(&self, predicate: P) -> Subgraph<'g, V, E>
+    where
+        P: Fn(&V) -> bool,
+    {
+        // Remove vertices
+        let vertex_mask: Vec<bool> = self
+            .graph
+            .vertices
+            .iter()
+            .enumerate()
+            .map(|(i, v)| self.vertex_mask[i] && predicate(v))
+            .collect();
 
-        for (_, es) in &self.edges {
-            for e in es {
-                result.remove(&e.to);
-            }
+        // Remove edges using the mask we just made
+        let edge_mask = self
+            .graph
+            .vertices
+            .iter()
+            .enumerate()
+            .flat_map(|(from, _)| {
+                self.graph
+                    .edges
+                    .get(from)
+                    .expect("edges to exist")
+                    .iter()
+                    .map(move |(to, _)| (from, *to))
+            })
+            .filter(|(from, to)| vertex_mask[*from] && vertex_mask[*to])
+            .collect();
+
+        Subgraph {
+            graph: self.graph,
+            vertex_mask,
+            edge_mask,
+        }
+    }
+
+    // Removes edges but keeps vertices alone
+    pub fn filter_edges<P>(&self, predicate: P) -> Subgraph<'g, V, E>
+    where
+        P: Fn(&E) -> bool,
+    {
+        let edge_mask = (0..self.vertex_mask.len())
+            .flat_map(|from| {
+                self.graph
+                    .edges
+                    .get(from)
+                    .expect("edges to exist")
+                    .iter()
+                    .map(move |(to, label)| (from, *to, label))
+            })
+            .filter_map(|(from, to, label)| {
+                if predicate(label) && self.edge_mask.contains(&(from, to)) {
+                    Some((from, to))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        Subgraph {
+            graph: self.graph,
+            vertex_mask: self.vertex_mask.clone(),
+            edge_mask,
+        }
+    }
+
+    // Expand subgraph along original edges, applying a predicate to decide whether to follow an edge
+    pub fn expand_via<P>(&self, predicate: P) -> Subgraph<'g, V, E>
+    where
+        P: Fn(&E) -> bool,
+    {
+        let mut vertex_mask = self.vertex_mask.clone();
+        let mut edge_mask = self.edge_mask.clone();
+
+        // front is the set of vertices we're attempting to expand the graph from
+        // via edges that are *not* in the edge mask (because those are already included)
+        // and that pass the predicate test
+        let mut front: Vec<usize> = vertex_mask
+            .iter()
+            .enumerate()
+            .filter_map(|(idx, inc)| if *inc { Some(idx) } else { None })
+            .collect();
+
+        while front.len() > 0 {
+            front = front
+                .iter()
+                .flat_map(|from| {
+                    let edges = self.graph.edges.get(*from).expect("edges to exist");
+
+                    edges.iter().map(move |(to, label)| (*from, *to, label))
+                })
+                .filter_map(|(from, to, label)| {
+                    if !self.edge_mask.contains(&(from, to)) && predicate(label) {
+                        // expand the graph
+                        vertex_mask[to] = true;
+                        edge_mask.insert((from, to));
+
+                        // and add the destination vertec to the next iteration front
+                        Some(to)
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
         }
 
-        result
+        Subgraph {
+            graph: self.graph,
+            vertex_mask,
+            edge_mask,
+        }
+    }
+
+    pub fn expand(&self) -> Self {
+        self.expand_via(|_| true)
+    }
+}
+
+impl<V, E> Debug for Subgraph<'_, V, E>
+where
+    V: Vertex + Debug,
+    E: Edge + Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let vertices: Vec<_> = self
+            .graph
+            .vertices
+            .iter()
+            .enumerate()
+            .filter_map(|(i, v)| if self.vertex_mask[i] { Some(v) } else { None })
+            .collect();
+
+        let edges: Vec<_> = self
+            .graph
+            .edges
+            .iter()
+            .enumerate()
+            .flat_map(|(fi, es)| {
+                es.iter().filter_map(move |(ti, l)| {
+                    if self.edge_mask.contains(&(fi, *ti)) {
+                        Some((
+                            self.graph.vertices[fi].clone(),
+                            self.graph.vertices[*ti].clone(),
+                            l,
+                        ))
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect();
+
+        f.debug_struct("Subgraph")
+            .field("vertices", &vertices)
+            .field("edges", &edges)
+            .finish()
+    }
+}
+
+// Iteration
+
+// Iterator over the graph adjacency lists
+pub struct GraphIter<'g, 's, V, E>
+where
+    V: Vertex,
+    E: Edge,
+    's: 'g,
+{
+    graph: &'g Graph<V, E>,
+    iter: iter::Enumerate<slice::Iter<'g, V>>,
+    masks: Option<(&'s Vec<bool>, &'s BTreeSet<(usize, usize)>)>,
+}
+
+impl<'g, 's, V, E> Iterator for GraphIter<'g, 's, V, E>
+where
+    V: Vertex,
+    E: Edge,
+    's: 'g,
+{
+    type Item = (&'g V, Edges<'g, V, E>);
+
+    fn next<'i>(&'i mut self) -> Option<Self::Item> {
+        let edge_mask = self.masks.map(|m| m.1);
+
+        match self.masks {
+            Some((vec_mask, _)) => self
+                .iter
+                .find(|(i, _)| *vec_mask.get(*i).expect("Vector mask size is wrong")),
+            None => self.iter.next(),
+        }
+        .map(|(i, v)| (v, Edges::new(self.graph, i, edge_mask)))
+    }
+}
+
+// Iterator over edges originating in a vertex
+pub struct Edges<'g, V, E>
+where
+    V: Vertex,
+    E: Edge,
+{
+    vertex: usize,
+    graph: &'g Graph<V, E>,
+    mask: Option<&'g BTreeSet<(usize, usize)>>,
+    iter: btree_set::Iter<'g, (usize, E)>,
+}
+
+impl<'g, V, E> Edges<'g, V, E>
+where
+    V: Vertex,
+    E: Edge,
+{
+    fn new(
+        graph: &'g Graph<V, E>,
+        index: usize,
+        mask: Option<&'g BTreeSet<(usize, usize)>>,
+    ) -> Self {
+        Self {
+            vertex: index,
+            graph,
+            iter: graph.edges[index].iter(),
+            mask,
+        }
+    }
+}
+
+impl<'g, V, E> Iterator for Edges<'g, V, E>
+where
+    V: Vertex,
+    E: Edge,
+{
+    type Item = (&'g V, E);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.mask {
+            Some(mask) => {
+                let vertex = self.vertex;
+                self.iter.find(|(dest, _)| mask.contains(&(vertex, *dest)))
+            }
+            None => self.iter.next(),
+        }
+        .map(|(vid, e)| {
+            (
+                self.graph
+                    .vertices
+                    .get(*vid)
+                    .expect("vertex not found in graph<"),
+                *e,
+            )
+        })
+    }
+}
+
+// Iterator over the vertices of the graph
+pub struct Vertices<'g, 's, V>
+where
+    V: 'g,
+{
+    iter: std::iter::Enumerate<std::slice::Iter<'g, V>>,
+    mask: Option<&'s Vec<bool>>,
+}
+
+impl<'g, 's, V> Iterator for Vertices<'g, 's, V> {
+    type Item = &'g V;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.mask {
+            Some(mask) => self.iter.find(|(i, _)| mask[*i]).map(|(_, v)| v),
+            None => self.iter.next().map(|(_, v)| v),
+        }
+    }
+}
+
+// Converting into iterator
+
+impl<'g, V, E> IntoIterator for &'g Graph<V, E>
+where
+    V: Vertex,
+    E: Edge,
+{
+    type Item = (&'g V, Edges<'g, V, E>);
+    type IntoIter = GraphIter<'g, 'g, V, E>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+impl<'g, V, E> IntoIterator for &'g Subgraph<'g, V, E>
+where
+    V: Vertex,
+    E: Edge,
+{
+    type Item = (&'g V, Edges<'g, V, E>);
+    type IntoIter = GraphIter<'g, 'g, V, E>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+// Make graphs and subgraphs comparable
+
+impl<V, E> PartialEq for Graph<V, E>
+where
+    V: Vertex,
+    E: Edge,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.iter()
+            .zip(other.iter())
+            .all(|(a, b)| a.0.eq(b.0) && a.1.eq(b.1))
+    }
+}
+
+impl<V, E> PartialEq for Subgraph<'_, V, E>
+where
+    V: Vertex,
+    E: Edge,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.iter()
+            .zip(other.iter())
+            .all(|(a, b)| a.0.eq(b.0) && a.1.eq(b.1))
+    }
+}
+
+impl<V, E> PartialEq<Subgraph<'_, V, E>> for Graph<V, E>
+where
+    V: Vertex,
+    E: Edge,
+{
+    fn eq(&self, other: &Subgraph<'_, V, E>) -> bool {
+        self.iter()
+            .zip(other.iter())
+            .all(|(a, b)| a.0.eq(b.0) && a.1.eq(b.1))
+    }
+}
+
+impl<V, E> PartialEq<Graph<V, E>> for Subgraph<'_, V, E>
+where
+    V: Vertex,
+    E: Edge,
+{
+    fn eq(&self, other: &Graph<V, E>) -> bool {
+        self.iter()
+            .zip(other.iter())
+            .all(|(a, b)| a.0.eq(b.0) && a.1.eq(b.1))
     }
 }
 
@@ -182,155 +652,179 @@ mod test {
 
     #[test]
     fn new_normalizes_graph() {
-        let graph = Graph::new(vec![(1, vec![Edge::new(2, 0), Edge::new(3, 0)])]);
+        let graph = Graph::<usize, usize>::from([(1, [(2, 0), (3, 0)])]);
 
-        let expected = vec![&1, &2, &3].into_iter().collect();
-        let actual = graph.vertices();
+        let expected = vec![1, 2, 3];
+        let actual = graph.vertices().cloned().collect::<Vec<_>>();
 
         assert_eq!(actual, expected);
     }
 
-    mod children {
+    mod filter {
         use super::super::*;
 
         #[test]
-        fn empty_graph() {
-            let graph = Graph::<usize, usize>::new(vec![]);
-            let query = vec![1].into_iter().collect();
+        fn filters_an_empty_graph() {
+            let graph = Graph::<usize, usize>::new();
 
-            let actual = graph.children(&query);
-            let expected = vec![].into_iter().collect();
+            let expected = Graph::<usize, usize>::new();
+            let actual_v = graph.filter_vertices(|_v| true);
+            let actual_e = graph.filter_edges(|_e| true);
+
+            assert_eq!(actual_v, expected);
+            assert_eq!(actual_e, expected);
+        }
+
+        #[test]
+        fn filters_a_vertex_from_a_graph() {
+            let graph = Graph::from([(1, [(2, 0), (3, 0)])]);
+
+            let expected = Graph::from([(1, [(3, 0)])]);
+            let actual = graph.filter_vertices(|v| *v != 2);
 
             assert_eq!(actual, expected);
         }
 
         #[test]
-        fn single_vertex_graph() {
-            let graph = Graph::<_, usize>::new(vec![(1, vec![])]);
-            let query = vec![1].into_iter().collect();
+        fn filters_an_edge_from_a_graph() {
+            let graph = Graph::from([(1, vec![(2, 0), (3, 1)]), (2, vec![(3, 0)])]);
 
-            let actual = graph.children(&query);
-            let expected = vec![].into_iter().collect();
-
-            assert_eq!(actual, expected);
-        }
-
-        #[test]
-        fn single_child_of_one_vertex() {
-            let graph = Graph::new(vec![(1, vec![Edge::new(2, 0)])]);
-            let query = vec![1].into_iter().collect();
-
-            let actual = graph.children(&query);
-            let expected = vec![&2].into_iter().collect();
+            let expected = Graph::from([(1, [(2, 0)]), (2, [(3, 0)])]);
+            let actual = graph.filter_edges(|e| *e != 1);
 
             assert_eq!(actual, expected);
         }
 
         #[test]
-        fn multiple_children_of_one_vertex() {
-            let graph = Graph::new(vec![(1, vec![Edge::new(2, 0), Edge::new(3, 0)])]);
+        fn filters_a_vertex_from_a_subgraph() {
+            let graph = Graph::from([(1, [(2, 0), (3, 0)])]);
 
-            let query = vec![1].into_iter().collect();
-
-            let actual = graph.children(&query);
-            let expected = vec![&2, &3].into_iter().collect();
+            let expected = Graph::from([(1, [])]);
+            let actual = graph
+                .filter_vertices(|v| *v != 2)
+                .filter_vertices(|v| *v != 3);
 
             assert_eq!(actual, expected);
         }
 
         #[test]
-        fn multiple_children_of_multiple_vertices() {
-            let graph = Graph::new(vec![
-                (1, vec![Edge::new(2, 0), Edge::new(3, 0)]),
-                (2, vec![Edge::new(3, 0), Edge::new(4, 0)]),
-            ]);
+        fn filters_an_edge_from_a_subgraph() {
+            let graph = Graph::from([(1, vec![(2, 0), (3, 1)]), (2, vec![(3, 0), (1, 2)])]);
 
-            let query = vec![1, 2].into_iter().collect();
+            let expected = Graph::from([(1, [(2, 0)]), (2, [(3, 0)])]);
+            let actual = graph.filter_edges(|e| *e != 1).filter_edges(|e| *e != 2);
 
-            let actual = graph.children(&query);
-            let expected = vec![&2, &3, &4].into_iter().collect();
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn filters_an_edge_from_a_vertex_filtered_subgraph() {
+            let graph = Graph::from([(1, vec![(2, 0), (3, 1)]), (2, vec![(3, 0), (1, 2)])]);
+
+            let expected = Graph::from([(1, vec![(2, 0)]), (2, vec![])]);
+            let actual = graph.filter_vertices(|v| *v != 3).filter_edges(|e| *e != 2);
 
             assert_eq!(actual, expected);
         }
     }
 
-    mod descendants {
+    mod expand {
         use super::super::*;
 
         #[test]
         fn empty_graph() {
-            let graph = Graph::<usize, usize>::new(vec![]);
-            let query = vec![1].into_iter().collect();
+            let graph = Graph::<usize, usize>::new();
 
-            let actual = graph.descendants(&query);
-            let expected = vec![].into_iter().collect();
+            let actual = graph.filter_vertices(|v| *v == 1).expand();
+            let expected = Graph::<usize, usize>::new();
 
             assert_eq!(actual, expected);
         }
 
         #[test]
         fn single_vertex_graph() {
-            let graph = Graph::<_, usize>::new(vec![(1, vec![])]);
-            let query = vec![1].into_iter().collect();
+            let graph = Graph::<_, usize>::from([(1, [])]);
 
-            let actual = graph.descendants(&query);
-            let expected = vec![].into_iter().collect();
+            let actual = graph.filter_vertices(|v| *v == 1).expand();
+            let expected = Graph::<_, usize>::from([(1, [])]);
 
             assert_eq!(actual, expected);
         }
 
         #[test]
         fn single_child_of_one_vertex() {
-            let graph = Graph::new(vec![(1, vec![Edge::new(2, 0)])]);
-            let query = vec![1].into_iter().collect();
+            let graph = Graph::from([(1, [(2, 0)]), (3, [(2, 0)])]);
 
-            let actual = graph.descendants(&query);
-            let expected = vec![&2].into_iter().collect();
+            let actual = graph.filter_vertices(|v| *v == 1).expand();
+            let expected = Graph::from([(1, [(2, 0)])]);
 
             assert_eq!(actual, expected);
         }
 
         #[test]
         fn multiple_children_of_one_vertex() {
-            let graph = Graph::new(vec![(1, vec![Edge::new(2, 0), Edge::new(3, 0)])]);
-            let query = vec![1].into_iter().collect();
+            let graph = Graph::from([(1, [(2, 0), (3, 0)])]);
 
-            let actual = graph.descendants(&query);
-            let expected = vec![&2, &3].into_iter().collect();
+            let actual = &graph.filter_vertices(|v| *v == 1).expand();
+            let expected = &graph;
 
             assert_eq!(actual, expected);
         }
 
         #[test]
         fn all_descendants_of_one_vertex() {
-            let graph = Graph::new(vec![
-                (1, vec![Edge::new(2, 0), Edge::new(3, 0)]),
-                (2, vec![Edge::new(3, 0), Edge::new(4, 0)]),
-            ]);
+            let graph = Graph::from([(1, [(2, 0), (3, 0)]), (2, [(3, 0), (4, 0)])]);
 
-            let query = vec![1].into_iter().collect();
-
-            let actual = graph.descendants(&query);
-            let expected = vec![&2, &3, &4].into_iter().collect();
+            let actual = &graph.filter_vertices(|v| *v == 1).expand();
+            let expected = &graph;
 
             assert_eq!(actual, expected);
         }
 
         #[test]
         fn all_descendants_of_multiple_vertices() {
-            let graph = Graph::new(vec![
-                (1, vec![Edge::new(4, 0), Edge::new(5, 0)]),
-                (2, vec![Edge::new(6, 0)]),
-                (3, vec![Edge::new(8, 0), Edge::new(9, 0)]),
-                (4, vec![Edge::new(7, 0)]),
-                (7, vec![Edge::new(8, 0)]),
-                (8, vec![Edge::new(5, 0)]),
+            let graph = Graph::from([
+                (1, vec![(4, 0), (5, 0)]),
+                (2, vec![(6, 0)]),
+                (3, vec![(8, 0), (9, 0)]),
+                (4, vec![(7, 0)]),
+                (7, vec![(8, 0)]),
+                (8, vec![(5, 0)]),
             ]);
 
-            let query = vec![1, 2].into_iter().collect();
+            let actual = graph.filter_vertices(|v| *v == 1 || *v == 2).expand();
+            let expected = Graph::from([
+                (1, vec![(4, 0), (5, 0)]),
+                (2, vec![(6, 0)]),
+                (4, vec![(7, 0)]),
+                (7, vec![(8, 0)]),
+                (8, vec![(5, 0)]),
+            ]);
 
-            let actual = graph.descendants(&query);
-            let expected = vec![&4, &5, &6, &7, &8].into_iter().collect();
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn all_descendants_via_edges_of_a_color() {
+            let graph = Graph::from([
+                (1, vec![(4, 1), (5, 0)]),
+                (2, vec![(6, 1)]),
+                (3, vec![(8, 0), (9, 0)]),
+                (4, vec![(7, 1)]),
+                (7, vec![(8, 0)]),
+                (8, vec![(5, 0)]),
+            ]);
+
+            let actual = graph
+                .filter_vertices(|v| *v == 1 || *v == 2 || *v == 5)
+                .expand_via(|e| *e == 1);
+            let expected = Graph::from([
+                (1, vec![(4, 1), (5, 0)]),
+                (2, vec![(6, 1)]),
+                (4, vec![(7, 1)]),
+                (5, vec![]),
+                (7, vec![]),
+            ]);
 
             assert_eq!(actual, expected);
         }
@@ -341,9 +835,9 @@ mod test {
 
         #[test]
         fn reverses_empty_graph() {
-            let graph = Graph::<usize, usize>::new(vec![]);
+            let graph = Graph::<usize, usize>::new();
 
-            let expected = Graph::<usize, usize>::new(vec![]);
+            let expected = Graph::<usize, usize>::new();
             let actual = graph.reverse();
 
             assert_eq!(actual, expected);
@@ -351,9 +845,9 @@ mod test {
 
         #[test]
         fn reverses_single_edge() {
-            let graph = Graph::<usize, usize>::new(vec![(1, vec![Edge::new(2, 0)])]);
+            let graph = Graph::<usize, usize>::from([(1, [(2, 0)])]);
 
-            let expected = Graph::<usize, usize>::new(vec![(2, vec![Edge::new(1, 0)])]);
+            let expected = Graph::<usize, usize>::from([(2, [(1, 0)])]);
             let actual = graph.reverse();
 
             assert_eq!(actual, expected);
@@ -361,16 +855,10 @@ mod test {
 
         #[test]
         fn reverses_a_fan() {
-            let graph = Graph::<usize, usize>::new(vec![(
-                1,
-                vec![Edge::new(2, 0), Edge::new(3, 1), Edge::new(4, 0)],
-            )]);
+            let graph = Graph::<usize, usize>::from([(1, [(2, 0), (3, 1), (4, 0)])]);
 
-            let expected = Graph::<usize, usize>::new(vec![
-                (2, vec![Edge::new(1, 0)]),
-                (3, vec![Edge::new(1, 1)]),
-                (4, vec![Edge::new(1, 0)]),
-            ]);
+            let expected =
+                Graph::<usize, usize>::from([(2, [(1, 0)]), (3, [(1, 1)]), (4, [(1, 0)])]);
             let actual = graph.reverse();
 
             assert_eq!(actual, expected);
@@ -378,16 +866,16 @@ mod test {
 
         #[test]
         fn reverses_a_complex_graph() {
-            let graph = Graph::<usize, usize>::new(vec![
-                (1, vec![Edge::new(2, 0), Edge::new(3, 1)]),
-                (2, vec![Edge::new(3, 0)]),
-                (3, vec![Edge::new(4, 0)]),
+            let graph = Graph::<usize, usize>::from([
+                (1, vec![(2, 0), (3, 1)]),
+                (2, vec![(3, 0)]),
+                (3, vec![(4, 0)]),
             ]);
 
-            let expected = Graph::<usize, usize>::new(vec![
-                (2, vec![Edge::new(1, 0)]),
-                (3, vec![Edge::new(1, 1), Edge::new(2, 0)]),
-                (4, vec![Edge::new(3, 0)]),
+            let expected = Graph::<usize, usize>::from([
+                (2, vec![(1, 0)]),
+                (3, vec![(1, 1), (2, 0)]),
+                (4, vec![(3, 0)]),
             ]);
             let actual = graph.reverse();
 
@@ -395,38 +883,57 @@ mod test {
         }
     }
 
-    mod filter {
+    mod roots {
         use super::super::*;
 
         #[test]
-        fn filters_an_empty_graph() {
-            let graph = Graph::<usize, usize>::new(vec![]);
+        fn of_an_empty_graph() {
+            let graph = Graph::<usize, usize>::new();
 
-            let expected = Graph::<usize, usize>::new(vec![]);
-            let actual = graph.filter(|_v| true, |_c| true);
-
-            assert_eq!(actual, expected);
-        }
-
-        #[test]
-        fn filters_a_vertex_from_a_graph() {
-            let graph = Graph::new(vec![(1, vec![Edge::new(2, 0), Edge::new(3, 0)])]);
-
-            let expected = Graph::new(vec![(1, vec![Edge::new(3, 0)])]);
-            let actual = graph.filter(|v| *v != 2, |_| true);
+            let actual = graph.roots();
+            let expected = Graph::<usize, usize>::new();
 
             assert_eq!(actual, expected);
         }
 
         #[test]
-        fn filters_an_edge_from_a_graph() {
-            let graph = Graph::new(vec![
-                (1, vec![Edge::new(2, 0), Edge::new(3, 1)]),
-                (2, vec![Edge::new(3, 0)]),
+        fn of_a_single_edge() {
+            let graph = Graph::from([(1, [(2, 0)])]);
+
+            let actual = graph.roots();
+            let expected = Graph::from([(1, [])]);
+
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn of_a_complex_graph() {
+            let graph = Graph::from([
+                (1, vec![(2, 0), (3, 0)]),
+                (2, vec![(3, 0)]),
+                (4, vec![(5, 0)]),
+                (5, vec![(6, 0)]),
+                (7, vec![(2, 0)]),
             ]);
 
-            let expected = Graph::new(vec![(1, vec![Edge::new(2, 0)]), (2, vec![Edge::new(3, 0)])]);
-            let actual = graph.filter(|_| true, |c| *c != 1);
+            let actual = graph.roots();
+            let expected = Graph::from([(1, vec![]), (4, vec![]), (7, vec![])]);
+
+            assert_eq!(actual, expected);
+        }
+
+        #[test]
+        fn of_a_subgraph() {
+            let graph = Graph::from([
+                (1, vec![(2, 0), (3, 1)]),
+                (2, vec![(3, 1)]),
+                (4, vec![(5, 0)]),
+                (5, vec![(6, 0)]),
+                (7, vec![(2, 0)]),
+            ]);
+
+            let actual = graph.filter_edges(|v| *v != 1).roots();
+            let expected = Graph::from([(1, vec![]), (3, vec![]), (4, vec![]), (7, vec![])]);
 
             assert_eq!(actual, expected);
         }

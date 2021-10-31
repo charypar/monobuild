@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::io::{self, BufRead};
 use std::path::Path;
@@ -26,7 +26,7 @@ fn main() {
     let opts = Opts::from_args();
     let result = match opts.cmd {
         Command::Print(opts) => print(opts.input_opts, opts.output_opts),
-        Command::Diff(opts) => diff(opts),
+        Command::Diff(opts) => diff(&opts),
     };
 
     match result {
@@ -42,7 +42,7 @@ fn main() {
 }
 
 fn print(input_opts: InputOpts, output_opts: OutputOpts) -> Result<String> {
-    let (graph, warnings) = load_graph(input_opts)?;
+    let (graph, warnings) = load_graph(&input_opts)?;
     for warning in warnings {
         eprint!("{}", warning);
     }
@@ -51,31 +51,37 @@ fn print(input_opts: InputOpts, output_opts: OutputOpts) -> Result<String> {
         return Ok(format!("{}", write::to_text(&graph, TextFormat::Full)));
     }
 
-    let graph = if output_opts.top_level {
-        let roots = graph.roots();
+    // Scope
 
-        graph.filter(|v| roots.contains(v), |_| true)
-    } else {
+    let scoped: HashSet<_> = if let Some(scope) = output_opts.scope {
         graph
+            .filter_vertices(|v| *v == scope)
+            .expand()
+            .vertices()
+            .collect()
+    } else {
+        graph.vertices().collect()
     };
+
+    let roots: HashSet<_> = if output_opts.top_level {
+        graph.roots().vertices().collect()
+    } else {
+        graph.vertices().collect()
+    };
+
+    let selection: HashSet<_> = scoped.intersection(&roots).cloned().collect();
+
+    let graph = graph.filter_vertices(|v| selection.contains(v));
+
+    // Output
 
     let (graph, dot_format) = if !output_opts.dependencies {
         (
-            graph.filter(|_| true, |d| d == &Dependency::Strong),
+            graph.filter_edges(|d| d == &Dependency::Strong),
             DotFormat::Schedule,
         )
     } else {
         (graph, DotFormat::Dependencies)
-    };
-
-    let graph = if let Some(scope) = output_opts.scope {
-        let root = vec![scope.clone()].into_iter().collect();
-        let mut tree_vertices = graph.descendants(&root);
-        tree_vertices.insert(&scope);
-
-        graph.filter(|v| tree_vertices.contains(v), |_| true)
-    } else {
-        graph
     };
 
     if output_opts.dot {
@@ -85,29 +91,84 @@ fn print(input_opts: InputOpts, output_opts: OutputOpts) -> Result<String> {
     Ok(format!("{}", write::to_text(&graph, TextFormat::Simple)))
 }
 
-fn diff(opts: DiffOpts) -> Result<String> {
-    let (graph, warnings) = load_graph(opts.input_opts)?;
+fn diff(opts: &DiffOpts) -> Result<String> {
+    let (graph, warnings) = load_graph(&opts.input_opts)?;
     for warning in warnings {
         eprint!("{}", warning);
     }
+    let impact_graph = graph.reverse();
 
-    let components: Vec<&Path> = graph
+    // Get changes
+
+    let components: Vec<&Path> = graph.vertices().map(|path| Path::new(path)).collect();
+    let changed = changed_components(components, &opts)?;
+
+    // Scope
+
+    let scoped: HashSet<_> = if let Some(scope) = &opts.output_opts.scope {
+        graph
+            .filter_vertices(|v| v == scope)
+            .expand()
+            .vertices()
+            .collect()
+    } else {
+        graph.vertices().collect()
+    };
+
+    let roots: HashSet<_> = if opts.output_opts.top_level {
+        graph.roots().vertices().collect()
+    } else {
+        graph.vertices().collect()
+    };
+
+    let affected: HashSet<_> = impact_graph
+        .filter_vertices(|v| changed.contains(v))
+        .expand()
         .vertices()
-        .into_iter()
-        .map(|path| Path::new(path))
         .collect();
 
-    // Get changed files
+    let selection: HashSet<_> = scoped.intersection(&affected).cloned().collect();
+    let selection: HashSet<_> = selection.intersection(&roots).cloned().collect();
 
-    let changed: BTreeSet<String> = match opts.changes {
+    // Apply selection
+
+    let graph = graph.filter_vertices(|v| selection.contains(&v));
+
+    // Include previously filtered components which are strong depenencies
+    let graph = if opts.rebuild_strong {
+        graph.expand_via(|e| *e == Dependency::Strong)
+    } else {
+        graph
+    };
+
+    // Output
+
+    let (dot_format, graph) = if !opts.output_opts.dependencies {
+        (
+            DotFormat::Schedule,
+            impact_graph.filter_edges(|e| *e == Dependency::Strong),
+        )
+    } else {
+        (DotFormat::Dependencies, graph)
+    };
+
+    if opts.output_opts.dot {
+        return Ok(format!("{}", write::to_dot(&graph, dot_format)));
+    }
+
+    Ok(format!("{}", write::to_text(&graph, TextFormat::Simple))) // Diff does not support full format
+}
+
+fn changed_components(components: Vec<&Path>, opts: &DiffOpts) -> Result<HashSet<String>> {
+    Ok(match opts.changes {
         cli::Source::Stdin => io::stdin().lock().lines().flatten().collect(),
         cli::Source::Git => {
             let mut git = Git::new(execute);
 
             let mode = if opts.main_branch {
-                Mode::Main(opts.base_branch)
+                Mode::Main(opts.base_branch.clone())
             } else {
-                Mode::Feature(opts.base_commit)
+                Mode::Feature(opts.base_commit.clone())
             };
 
             git.diff(mode)?
@@ -115,7 +176,6 @@ fn diff(opts: DiffOpts) -> Result<String> {
     }
     .into_iter()
     .filter_map(|file_path| {
-        // TODO Filter down to changed components
         let file_path = Path::new(&file_path);
         for component in &components {
             if file_path.starts_with(component) {
@@ -125,17 +185,7 @@ fn diff(opts: DiffOpts) -> Result<String> {
 
         None
     })
-    .collect();
-
-    // Get impaced subgraph
-    let impact_graph = graph.reverse();
-    let affected = impact_graph.descendants(&changed);
-    let graph = graph.filter(
-        |v| affected.contains(v) || changed.contains(v),
-        |e| *e == Dependency::Strong,
-    );
-
-    Ok(format!("{}", write::to_text(&graph, TextFormat::Simple)))
+    .collect())
 }
 
 fn execute(command: Vec<String>) -> Result<String, String> {
@@ -160,17 +210,17 @@ fn execute(command: Vec<String>) -> Result<String, String> {
 
 // Input processing
 
-fn load_graph(input_opts: InputOpts) -> Result<(Graph<String, Dependency>, Vec<Warning>)> {
-    if let Some(path) = input_opts.full_manifest {
+fn load_graph(input_opts: &InputOpts) -> Result<(Graph<String, Dependency>, Vec<Warning>)> {
+    if let Some(path) = &input_opts.full_manifest {
         let content = fs::read_to_string(path)?;
         Ok(read::repo_manifest(content))
     } else {
-        let manifests = read_manifest_files(input_opts.dependency_files_glob)?;
+        let manifests = read_manifest_files(&input_opts.dependency_files_glob)?;
         Ok(read::manifests(manifests))
     }
 }
 
-fn read_manifest_files(glob: String) -> Result<BTreeMap<String, String>> {
+fn read_manifest_files(glob: &str) -> Result<BTreeMap<String, String>> {
     let pattern = glob::Pattern::new(&glob).expect("Malformed manifest search pattern"); // FIXME handle this better
 
     let manifests: BTreeMap<String, String> = WalkBuilder::new("./")
