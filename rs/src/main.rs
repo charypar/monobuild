@@ -69,8 +69,8 @@ fn print(input_opts: InputOpts, output_opts: OutputOpts) -> Result<String> {
         graph.vertices().collect()
     };
 
+    // TODO this should now be avoidable
     let selection: HashSet<_> = scoped.intersection(&roots).cloned().collect();
-
     let graph = graph.filter_vertices(|v| selection.contains(v));
 
     // Output
@@ -127,6 +127,7 @@ fn diff(opts: &DiffOpts) -> Result<String> {
         .vertices()
         .collect();
 
+    // TODO this should now be avoidable
     let selection: HashSet<_> = scoped.intersection(&affected).cloned().collect();
     let selection: HashSet<_> = selection.intersection(&roots).cloned().collect();
 
@@ -143,20 +144,24 @@ fn diff(opts: &DiffOpts) -> Result<String> {
 
     // Output
 
-    let (dot_format, graph) = if !opts.output_opts.dependencies {
+    if opts.output_opts.full {
+        return Ok(format!("{}", write::to_text(&graph, TextFormat::Full)));
+    }
+
+    let (dot_format, graph) = if opts.output_opts.dependencies {
+        (DotFormat::Dependencies, graph)
+    } else {
         (
             DotFormat::Schedule,
-            impact_graph.filter_edges(|e| *e == Dependency::Strong),
+            graph.filter_edges(|e| *e == Dependency::Strong),
         )
-    } else {
-        (DotFormat::Dependencies, graph)
     };
 
     if opts.output_opts.dot {
         return Ok(format!("{}", write::to_dot(&graph, dot_format)));
     }
 
-    Ok(format!("{}", write::to_text(&graph, TextFormat::Simple))) // Diff does not support full format
+    Ok(format!("{}", write::to_text(&graph, TextFormat::Simple)))
 }
 
 fn changed_components(components: Vec<&Path>, opts: &DiffOpts) -> Result<HashSet<String>> {

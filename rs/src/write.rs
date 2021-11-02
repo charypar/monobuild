@@ -86,6 +86,7 @@ where
     InnIt: Iterator<Item = (&'g V, Dependency)>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // FIXME check schedule prints correctly (may need reversing)
         match self.format {
             DotFormat::Dependencies => write!(f, "digraph dependencies {{\n")?,
             DotFormat::Schedule => write!(
