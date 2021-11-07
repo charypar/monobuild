@@ -53,35 +53,25 @@ fn print(input_opts: InputOpts, output_opts: OutputOpts) -> Result<String> {
 
     // Scope
 
-    let scoped: HashSet<_> = if let Some(scope) = output_opts.scope {
-        graph
-            .filter_vertices(|v| *v == scope)
-            .expand()
-            .vertices()
-            .collect()
-    } else {
-        graph.vertices().collect()
-    };
+    // FIXME this is here purely to star us off with a Subgraph
+    let mut graph = graph.filter_vertices(|_| true);
 
-    let roots: HashSet<_> = if output_opts.top_level {
-        graph.roots().vertices().collect()
-    } else {
-        graph.vertices().collect()
-    };
+    if let Some(scope) = output_opts.scope {
+        graph = graph.filter_vertices(|v| *v == scope).expand()
+    }
 
-    // TODO this should now be avoidable
-    let selection: HashSet<_> = scoped.intersection(&roots).cloned().collect();
-    let graph = graph.filter_vertices(|v| selection.contains(v));
+    if output_opts.top_level {
+        graph = graph.roots()
+    }
 
     // Output
 
-    let (graph, dot_format) = if !output_opts.dependencies {
-        (
-            graph.filter_edges(|d| d == &Dependency::Strong),
-            DotFormat::Schedule,
-        )
+    let dot_format = if !output_opts.dependencies {
+        graph = graph.filter_edges(|d| d == &Dependency::Strong);
+
+        DotFormat::Schedule
     } else {
-        (graph, DotFormat::Dependencies)
+        DotFormat::Dependencies
     };
 
     if output_opts.dot {
@@ -101,45 +91,31 @@ fn diff(opts: &DiffOpts) -> Result<String> {
     // Get changes
 
     let components: Vec<&Path> = graph.vertices().map(|path| Path::new(path)).collect();
+
     let changed = changed_components(components, &opts)?;
-
-    // Scope
-
-    let scoped: HashSet<_> = if let Some(scope) = &opts.output_opts.scope {
-        graph
-            .filter_vertices(|v| v == scope)
-            .expand()
-            .vertices()
-            .collect()
-    } else {
-        graph.vertices().collect()
-    };
-
-    let roots: HashSet<_> = if opts.output_opts.top_level {
-        graph.roots().vertices().collect()
-    } else {
-        graph.vertices().collect()
-    };
-
     let affected: HashSet<_> = impact_graph
         .filter_vertices(|v| changed.contains(v))
         .expand()
         .vertices()
         .collect();
 
-    // TODO this should now be avoidable
-    let selection: HashSet<_> = scoped.intersection(&affected).cloned().collect();
-    let selection: HashSet<_> = selection.intersection(&roots).cloned().collect();
+    // Scope
 
-    // Apply selection
+    // FIXME this is here purely to star us off with a Subgraph
+    let mut graph = graph.filter_vertices(|_| true);
 
-    let graph = graph.filter_vertices(|v| selection.contains(&v));
+    if let Some(scope) = &opts.output_opts.scope {
+        graph = graph.filter_vertices(|v| v == scope).expand();
+    };
 
-    // Include previously filtered components which are strong depenencies
-    let graph = if opts.rebuild_strong {
-        graph.expand_via(|e| *e == Dependency::Strong)
-    } else {
-        graph
+    graph = graph.filter_vertices(|v| affected.contains(&v));
+
+    if opts.output_opts.top_level {
+        graph = graph.roots();
+    };
+
+    if opts.rebuild_strong {
+        graph = graph.expand_via(|e| *e == Dependency::Strong)
     };
 
     // Output
@@ -148,13 +124,12 @@ fn diff(opts: &DiffOpts) -> Result<String> {
         return Ok(format!("{}", write::to_text(&graph, TextFormat::Full)));
     }
 
-    let (dot_format, graph) = if opts.output_opts.dependencies {
-        (DotFormat::Dependencies, graph)
+    let dot_format = if !opts.output_opts.dependencies {
+        graph = graph.filter_edges(|e| *e == Dependency::Strong);
+
+        DotFormat::Schedule
     } else {
-        (
-            DotFormat::Schedule,
-            graph.filter_edges(|e| *e == Dependency::Strong),
-        )
+        DotFormat::Dependencies
     };
 
     if opts.output_opts.dot {

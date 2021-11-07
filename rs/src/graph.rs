@@ -261,18 +261,18 @@ where
     }
 
     pub fn roots(&self) -> Subgraph<'g, V, E> {
-        let mut vertex_mask: Vec<_> = iter::repeat(true).take(self.vertex_mask.len()).collect();
+        let mut vertex_mask: Vec<_> = self.vertex_mask.clone();
 
         // Remove all vertices with an incoming edge
         for (from, edgs) in self.graph.edges.iter().enumerate() {
             for (to, _) in edgs {
-                if self.edge_mask.contains(&(from, *to)) || !self.vertex_mask[*to] {
+                if self.edge_mask.contains(&(from, *to)) {
                     vertex_mask[*to] = false;
                 }
             }
         }
 
-        // Remove edges using the mask we just made
+        // Remove edges using the mask we just made, respecting the original edge mask
         let edge_mask = (0..self.graph.vertices.len())
             .flat_map(|from| {
                 self.graph
@@ -322,7 +322,9 @@ where
                     .iter()
                     .map(move |(to, _)| (from, *to))
             })
-            .filter(|(from, to)| vertex_mask[*from] && vertex_mask[*to])
+            .filter(|(from, to)| {
+                vertex_mask[*from] && vertex_mask[*to] && self.edge_mask.contains(&(*from, *to))
+            })
             .collect();
 
         Subgraph {
@@ -932,8 +934,11 @@ mod test {
                 (7, vec![(2, 0)]),
             ]);
 
-            let actual = graph.filter_edges(|v| *v != 1).roots();
-            let expected = Graph::from([(1, vec![]), (3, vec![]), (4, vec![]), (7, vec![])]);
+            let actual = graph
+                .filter_edges(|e| *e != 1)
+                .filter_vertices(|v| *v != 7)
+                .roots();
+            let expected = Graph::from([(1, vec![]), (3, vec![]), (4, vec![])]);
 
             assert_eq!(actual, expected);
         }
