@@ -145,9 +145,10 @@ fn execute(command: Vec<String>) -> Result<String, String> {
             .map(|s| s.to_string())
             .map_err(|e| format!("Could not convert git output to string: {}", e))
     } else {
-        std::str::from_utf8(&out.stdout)
-            .map(|s| s.to_string())
-            .map_err(|e| format!("Could not convert git output to string: {}", e))
+        let error = std::str::from_utf8(&out.stderr)
+            .map_err(|e| format!("Could not convert git output to string: {}", e))?;
+
+        Err(error.to_string())
     }
 }
 
