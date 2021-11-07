@@ -50,7 +50,7 @@ fn print(input_opts: InputOpts, output_opts: OutputOpts) -> Result<String> {
     }
 
     if output_opts.full {
-        return Ok(format!("{}", write::to_text(&graph, TextFormat::Full)));
+        return Ok(write::to_text(&graph, TextFormat::Full).to_string());
     }
 
     // FIXME this is here purely to star us off with a Subgraph
@@ -94,7 +94,7 @@ fn diff(opts: &DiffOpts) -> Result<String> {
     // Output
 
     if opts.output_opts.full {
-        return Ok(format!("{}", write::to_text(&graph, TextFormat::Full)));
+        return Ok(write::to_text(&graph, TextFormat::Full).to_string());
     }
 
     print_output(graph, &opts.output_opts)
@@ -222,8 +222,8 @@ fn print_output<'g>(
     };
 
     if output_opts.dot {
-        return Ok(format!("{}", write::to_dot(&graph, dot_format)));
+        return Ok(write::to_dot(&graph, dot_format).to_string());
     }
 
-    Ok(format!("{}", write::to_text(&graph, TextFormat::Simple)))
+    Ok(write::to_text(&graph, TextFormat::Simple).to_string())
 }
