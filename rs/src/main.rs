@@ -18,7 +18,7 @@ mod write;
 use crate::{core::Dependency, write::DotFormat};
 use cli::{Command, DiffOpts, InputOpts, Opts, OutputOpts};
 use git::{Git, Mode};
-use graph::Graph;
+use graph::{Graph, Subgraph};
 use read::Warning;
 use write::TextFormat;
 
@@ -41,6 +41,8 @@ fn main() {
     }
 }
 
+// Commands
+
 fn print(input_opts: InputOpts, output_opts: OutputOpts) -> Result<String> {
     let (graph, warnings) = load_graph(&input_opts)?;
     for warning in warnings {
@@ -51,34 +53,12 @@ fn print(input_opts: InputOpts, output_opts: OutputOpts) -> Result<String> {
         return Ok(format!("{}", write::to_text(&graph, TextFormat::Full)));
     }
 
-    // Scope
-
     // FIXME this is here purely to star us off with a Subgraph
     let mut graph = graph.filter_vertices(|_| true);
 
-    if let Some(scope) = output_opts.scope {
-        graph = graph.filter_vertices(|v| *v == scope).expand()
-    }
+    graph = scope_graph(graph, &output_opts);
 
-    if output_opts.top_level {
-        graph = graph.roots()
-    }
-
-    // Output
-
-    let dot_format = if !output_opts.dependencies {
-        graph = graph.filter_edges(|d| d == &Dependency::Strong);
-
-        DotFormat::Schedule
-    } else {
-        DotFormat::Dependencies
-    };
-
-    if output_opts.dot {
-        return Ok(format!("{}", write::to_dot(&graph, dot_format)));
-    }
-
-    Ok(format!("{}", write::to_text(&graph, TextFormat::Simple)))
+    print_output(graph, &output_opts)
 }
 
 fn diff(opts: &DiffOpts) -> Result<String> {
@@ -103,16 +83,9 @@ fn diff(opts: &DiffOpts) -> Result<String> {
 
     // FIXME this is here purely to star us off with a Subgraph
     let mut graph = graph.filter_vertices(|_| true);
-
-    if let Some(scope) = &opts.output_opts.scope {
-        graph = graph.filter_vertices(|v| v == scope).expand();
-    };
+    graph = scope_graph(graph, &opts.output_opts);
 
     graph = graph.filter_vertices(|v| affected.contains(&v));
-
-    if opts.output_opts.top_level {
-        graph = graph.roots();
-    };
 
     if opts.rebuild_strong {
         graph = graph.expand_via(|e| *e == Dependency::Strong)
@@ -124,20 +97,10 @@ fn diff(opts: &DiffOpts) -> Result<String> {
         return Ok(format!("{}", write::to_text(&graph, TextFormat::Full)));
     }
 
-    let dot_format = if !opts.output_opts.dependencies {
-        graph = graph.filter_edges(|e| *e == Dependency::Strong);
-
-        DotFormat::Schedule
-    } else {
-        DotFormat::Dependencies
-    };
-
-    if opts.output_opts.dot {
-        return Ok(format!("{}", write::to_dot(&graph, dot_format)));
-    }
-
-    Ok(format!("{}", write::to_text(&graph, TextFormat::Simple)))
+    print_output(graph, &opts.output_opts)
 }
+
+// Support functions
 
 fn changed_components(components: Vec<&Path>, opts: &DiffOpts) -> Result<HashSet<String>> {
     Ok(match opts.changes {
@@ -188,8 +151,6 @@ fn execute(command: Vec<String>) -> Result<String, String> {
     }
 }
 
-// Input processing
-
 fn load_graph(input_opts: &InputOpts) -> Result<(Graph<String, Dependency>, Vec<Warning>)> {
     if let Some(path) = &input_opts.full_manifest {
         let content = fs::read_to_string(path)?;
@@ -227,4 +188,42 @@ fn read_manifest_files(glob: &str) -> Result<BTreeMap<String, String>> {
         .collect();
 
     Ok(manifests)
+}
+
+fn scope_graph<'g>(
+    graph: Subgraph<'g, String, Dependency>,
+    opts: &OutputOpts,
+) -> Subgraph<'g, String, Dependency> {
+    let mut graph = graph;
+
+    if let Some(scope) = &opts.scope {
+        graph = graph.filter_vertices(|v| v == scope).expand();
+    };
+
+    if opts.top_level {
+        graph = graph.roots();
+    };
+
+    graph
+}
+
+fn print_output<'g>(
+    graph: Subgraph<'g, String, Dependency>,
+    output_opts: &OutputOpts,
+) -> Result<String> {
+    let mut graph = graph;
+
+    let dot_format = if !output_opts.dependencies {
+        graph = graph.filter_edges(|e| *e == Dependency::Strong);
+
+        DotFormat::Schedule
+    } else {
+        DotFormat::Dependencies
+    };
+
+    if output_opts.dot {
+        return Ok(format!("{}", write::to_dot(&graph, dot_format)));
+    }
+
+    Ok(format!("{}", write::to_text(&graph, TextFormat::Simple)))
 }
