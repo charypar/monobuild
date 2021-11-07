@@ -35,14 +35,10 @@ where
 
     pub fn diff_base(&mut self, mode: Mode) -> Result<Commit, GitError> {
         match mode {
-            Mode::Feature(base_branch) => (self.executor)(
-                ["git", "merge-base", base_branch.as_ref(), "HEAD"]
-                    .iter()
-                    .map(|p| p.to_string())
-                    .collect(),
-            )
-            .map(|base| base.trim_end().to_string())
-            .map_err(|e| GitError::MergeBase(base_branch, e.to_string())),
+            Mode::Feature(base_branch) => self
+                .execute(["git", "merge-base", base_branch.as_ref(), "HEAD"])
+                .map(|base| base.trim_end().to_string())
+                .map_err(|e| GitError::MergeBase(base_branch, e.to_string())),
             Mode::Main(base_commit) => Ok(base_commit.trim_end().to_string()),
         }
     }
@@ -50,19 +46,14 @@ where
     pub fn diff(&mut self, mode: Mode) -> Result<Vec<String>, GitError> {
         let base = self.diff_base(mode)?;
 
-        (self.executor)(
-            [
-                "git",
-                "diff",
-                "--no-commit-id",
-                "--name-only",
-                "-r",
-                base.as_ref(),
-            ]
-            .iter()
-            .map(|p| p.to_string())
-            .collect(),
-        )
+        self.execute([
+            "git",
+            "diff",
+            "--no-commit-id",
+            "--name-only",
+            "-r",
+            base.as_ref(),
+        ])
         .map(|files| {
             files
                 .trim_end()
@@ -71,6 +62,13 @@ where
                 .collect()
         })
         .map_err(|e| GitError::Diff(e.to_string()))
+    }
+
+    fn execute<'a>(
+        &mut self,
+        command: impl IntoIterator<Item = &'a str>,
+    ) -> Result<String, String> {
+        (self.executor)(command.into_iter().map(|p| p.to_string()).collect())
     }
 }
 
