@@ -7,11 +7,10 @@ pub enum TextFormat {
     Full,
 }
 
-pub struct Text<'g, G, V, It, InnIt>
+pub struct Text<'g, G, V, InnIt>
 where
-    G: IntoIterator<IntoIter = It>,
+    G: IntoIterator<Item = (&'g V, InnIt)>,
     V: Clone + PartialEq + 'g,
-    It: Iterator<Item = (&'g V, InnIt)>,
     InnIt: Iterator<Item = (&'g V, Dependency)>,
 {
     graph: G,
@@ -23,42 +22,38 @@ pub enum DotFormat {
     Schedule,
 }
 
-pub struct Dot<'g, G, V, It, InnIt>
+pub struct Dot<'g, G, V, InnIt>
 where
-    G: IntoIterator<IntoIter = It>,
+    G: IntoIterator<Item = (&'g V, InnIt)>,
     V: Clone + PartialEq + 'g,
-    It: Iterator<Item = (&'g V, InnIt)>,
     InnIt: Iterator<Item = (&'g V, Dependency)>,
 {
     graph: G,
     format: DotFormat,
 }
 
-pub fn to_text<'g, G, V, It, InnIt>(graph: G, format: TextFormat) -> Text<'g, G, V, It, InnIt>
+pub fn to_text<'g, G, V, InnIt>(graph: G, format: TextFormat) -> Text<'g, G, V, InnIt>
 where
-    G: IntoIterator<IntoIter = It> + Clone,
+    G: IntoIterator<Item = (&'g V, InnIt)> + Clone,
     V: Clone + PartialEq + 'g,
-    It: Iterator<Item = (&'g V, InnIt)>,
     InnIt: Iterator<Item = (&'g V, Dependency)>,
 {
     Text { graph, format }
 }
 
-pub fn to_dot<'g, G, V, It, InnIt>(graph: G, format: DotFormat) -> Dot<'g, G, V, It, InnIt>
+pub fn to_dot<'g, G, V, InnIt>(graph: G, format: DotFormat) -> Dot<'g, G, V, InnIt>
 where
-    G: IntoIterator<IntoIter = It> + Clone,
+    G: IntoIterator<Item = (&'g V, InnIt)> + Clone,
     V: Clone + Ord,
-    It: Iterator<Item = (&'g V, InnIt)>,
     InnIt: Iterator<Item = (&'g V, Dependency)>,
 {
     Dot { graph, format }
 }
 
-impl<'g, G, V, It, InnIt> Display for Text<'g, G, V, It, InnIt>
+impl<'g, G, V, InnIt> Display for Text<'g, G, V, InnIt>
 where
-    G: IntoIterator<IntoIter = It> + Clone,
+    G: IntoIterator<Item = (&'g V, InnIt)> + Clone,
     V: Clone + Display + PartialEq,
-    It: Iterator<Item = (&'g V, InnIt)>,
     InnIt: Iterator<Item = (&'g V, Dependency)>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -78,11 +73,10 @@ where
     }
 }
 
-impl<'g, G, V, It, InnIt> Display for Dot<'g, G, V, It, InnIt>
+impl<'g, G, V, InnIt> Display for Dot<'g, G, V, InnIt>
 where
-    G: IntoIterator<IntoIter = It> + Clone,
+    G: IntoIterator<Item = (&'g V, InnIt)> + Clone,
     V: Clone + Ord + Display,
-    It: Iterator<Item = (&'g V, InnIt)>,
     InnIt: Iterator<Item = (&'g V, Dependency)>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
