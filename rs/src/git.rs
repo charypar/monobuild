@@ -1,4 +1,4 @@
-use std::{error::Error, fmt::Display};
+use thiserror::Error;
 
 pub type Commit = String;
 pub type Command = Vec<String>;
@@ -8,24 +8,12 @@ pub enum Mode {
     Main(String),    // base commit, e.g. 'HEAD^1'
 }
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Error, Debug)]
 pub enum GitError {
+    #[error("Cannot find merge base with branch {0}: {1}")]
     MergeBase(String, String), // base branch, error
-    Diff(String),              // error
-}
-impl Error for GitError {}
-
-impl Display for GitError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            GitError::MergeBase(base_branch, error) => write!(
-                f,
-                "Cannot find merge base with branch {}: {}",
-                base_branch, error
-            ),
-            GitError::Diff(error) => write!(f, "Finding changed files failed: {}", error),
-        }
-    }
+    #[error("Finding changed files failed: {0}")]
+    Diff(String), // error
 }
 
 pub struct Git<Executor>
