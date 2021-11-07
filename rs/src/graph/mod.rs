@@ -1,6 +1,10 @@
-use std::collections::{btree_set, BTreeMap, BTreeSet};
-use std::fmt::Debug;
-use std::{iter, slice};
+use std::collections::{BTreeMap, BTreeSet};
+
+mod debug;
+mod iter;
+mod partial_eq;
+
+use self::iter::{GraphIter, Vertices};
 
 pub trait Vertex: PartialEq + Clone {}
 impl<T> Vertex for T where T: PartialEq + Clone {}
@@ -48,7 +52,7 @@ where
     // Scope graph
 
     pub fn roots<'g>(&'g self) -> Subgraph<'g, V, E> {
-        let mut vertex_mask: Vec<_> = iter::repeat(true).take(self.vertices.len()).collect();
+        let mut vertex_mask: Vec<_> = std::iter::repeat(true).take(self.vertices.len()).collect();
 
         // Remove all vertices with an incoming edge
         for edgs in &self.edges {
@@ -108,7 +112,7 @@ where
     where
         P: Fn(&E) -> bool,
     {
-        let vertex_mask = iter::repeat(true).take(self.vertices.len()).collect();
+        let vertex_mask = std::iter::repeat(true).take(self.vertices.len()).collect();
         let edge_mask = (0..self.vertices.len())
             .flat_map(|from| {
                 self.edges
@@ -137,7 +141,7 @@ where
 
     pub fn reverse(&self) -> Self {
         let vertices = self.vertices.clone();
-        let mut edges: Vec<_> = iter::repeat_with(|| BTreeSet::new())
+        let mut edges: Vec<_> = std::iter::repeat_with(|| BTreeSet::new())
             .take(vertices.len())
             .collect();
 
@@ -148,29 +152,6 @@ where
         }
 
         Graph { vertices, edges }
-    }
-}
-
-impl<V, E> Debug for Graph<V, E>
-where
-    V: Vertex + Debug,
-    E: Edge + Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let edges: Vec<_> = self
-            .edges
-            .iter()
-            .enumerate()
-            .flat_map(|(fi, es)| {
-                es.iter()
-                    .map(move |(ti, l)| (self.vertices[fi].clone(), self.vertices[*ti].clone(), l))
-            })
-            .collect();
-
-        f.debug_struct("Graph")
-            .field("vertices", &self.vertices)
-            .field("edges", &edges)
-            .finish()
     }
 }
 
@@ -208,7 +189,7 @@ where
             .collect();
 
         // Allocate edge mapping
-        let mut edges: Vec<_> = iter::repeat_with(|| BTreeSet::new())
+        let mut edges: Vec<_> = std::iter::repeat_with(|| BTreeSet::new())
             .take(vertices.len())
             .collect();
 
@@ -413,238 +394,6 @@ where
 
     pub fn expand(&self) -> Self {
         self.expand_via(|_| true)
-    }
-}
-
-impl<V, E> Debug for Subgraph<'_, V, E>
-where
-    V: Vertex + Debug,
-    E: Edge + Debug,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let vertices: Vec<_> = self
-            .graph
-            .vertices
-            .iter()
-            .enumerate()
-            .filter_map(|(i, v)| if self.vertex_mask[i] { Some(v) } else { None })
-            .collect();
-
-        let edges: Vec<_> = self
-            .graph
-            .edges
-            .iter()
-            .enumerate()
-            .flat_map(|(fi, es)| {
-                es.iter().filter_map(move |(ti, l)| {
-                    if self.edge_mask.contains(&(fi, *ti)) {
-                        Some((
-                            self.graph.vertices[fi].clone(),
-                            self.graph.vertices[*ti].clone(),
-                            l,
-                        ))
-                    } else {
-                        None
-                    }
-                })
-            })
-            .collect();
-
-        f.debug_struct("Subgraph")
-            .field("vertices", &vertices)
-            .field("edges", &edges)
-            .finish()
-    }
-}
-
-// Iteration
-
-// Iterator over the graph adjacency lists
-pub struct GraphIter<'g, 's, V, E>
-where
-    V: Vertex,
-    E: Edge,
-    's: 'g,
-{
-    graph: &'g Graph<V, E>,
-    iter: iter::Enumerate<slice::Iter<'g, V>>,
-    masks: Option<(&'s Vec<bool>, &'s BTreeSet<(usize, usize)>)>,
-}
-
-impl<'g, 's, V, E> Iterator for GraphIter<'g, 's, V, E>
-where
-    V: Vertex,
-    E: Edge,
-    's: 'g,
-{
-    type Item = (&'g V, Edges<'g, V, E>);
-
-    fn next<'i>(&'i mut self) -> Option<Self::Item> {
-        let edge_mask = self.masks.map(|m| m.1);
-
-        match self.masks {
-            Some((vec_mask, _)) => self
-                .iter
-                .find(|(i, _)| *vec_mask.get(*i).expect("Vector mask size is wrong")),
-            None => self.iter.next(),
-        }
-        .map(|(i, v)| (v, Edges::new(self.graph, i, edge_mask)))
-    }
-}
-
-// Iterator over edges originating in a vertex
-pub struct Edges<'g, V, E>
-where
-    V: Vertex,
-    E: Edge,
-{
-    vertex: usize,
-    graph: &'g Graph<V, E>,
-    mask: Option<&'g BTreeSet<(usize, usize)>>,
-    iter: btree_set::Iter<'g, (usize, E)>,
-}
-
-impl<'g, V, E> Edges<'g, V, E>
-where
-    V: Vertex,
-    E: Edge,
-{
-    fn new(
-        graph: &'g Graph<V, E>,
-        index: usize,
-        mask: Option<&'g BTreeSet<(usize, usize)>>,
-    ) -> Self {
-        Self {
-            vertex: index,
-            graph,
-            iter: graph.edges[index].iter(),
-            mask,
-        }
-    }
-}
-
-impl<'g, V, E> Iterator for Edges<'g, V, E>
-where
-    V: Vertex,
-    E: Edge,
-{
-    type Item = (&'g V, E);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.mask {
-            Some(mask) => {
-                let vertex = self.vertex;
-                self.iter.find(|(dest, _)| mask.contains(&(vertex, *dest)))
-            }
-            None => self.iter.next(),
-        }
-        .map(|(vid, e)| {
-            (
-                self.graph
-                    .vertices
-                    .get(*vid)
-                    .expect("vertex not found in graph<"),
-                *e,
-            )
-        })
-    }
-}
-
-// Iterator over the vertices of the graph
-pub struct Vertices<'g, 's, V>
-where
-    V: 'g,
-{
-    iter: std::iter::Enumerate<std::slice::Iter<'g, V>>,
-    mask: Option<&'s Vec<bool>>,
-}
-
-impl<'g, 's, V> Iterator for Vertices<'g, 's, V> {
-    type Item = &'g V;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.mask {
-            Some(mask) => self.iter.find(|(i, _)| mask[*i]).map(|(_, v)| v),
-            None => self.iter.next().map(|(_, v)| v),
-        }
-    }
-}
-
-// Converting into iterator
-
-impl<'g, V, E> IntoIterator for &'g Graph<V, E>
-where
-    V: Vertex,
-    E: Edge,
-{
-    type Item = (&'g V, Edges<'g, V, E>);
-    type IntoIter = GraphIter<'g, 'g, V, E>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
-impl<'g, V, E> IntoIterator for &'g Subgraph<'g, V, E>
-where
-    V: Vertex,
-    E: Edge,
-{
-    type Item = (&'g V, Edges<'g, V, E>);
-    type IntoIter = GraphIter<'g, 'g, V, E>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
-// Make graphs and subgraphs comparable
-
-impl<V, E> PartialEq for Graph<V, E>
-where
-    V: Vertex,
-    E: Edge,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.iter()
-            .zip(other.iter())
-            .all(|(a, b)| a.0.eq(b.0) && a.1.eq(b.1))
-    }
-}
-
-impl<V, E> PartialEq for Subgraph<'_, V, E>
-where
-    V: Vertex,
-    E: Edge,
-{
-    fn eq(&self, other: &Self) -> bool {
-        self.iter()
-            .zip(other.iter())
-            .all(|(a, b)| a.0.eq(b.0) && a.1.eq(b.1))
-    }
-}
-
-impl<V, E> PartialEq<Subgraph<'_, V, E>> for Graph<V, E>
-where
-    V: Vertex,
-    E: Edge,
-{
-    fn eq(&self, other: &Subgraph<'_, V, E>) -> bool {
-        self.iter()
-            .zip(other.iter())
-            .all(|(a, b)| a.0.eq(b.0) && a.1.eq(b.1))
-    }
-}
-
-impl<V, E> PartialEq<Graph<V, E>> for Subgraph<'_, V, E>
-where
-    V: Vertex,
-    E: Edge,
-{
-    fn eq(&self, other: &Graph<V, E>) -> bool {
-        self.iter()
-            .zip(other.iter())
-            .all(|(a, b)| a.0.eq(b.0) && a.1.eq(b.1))
     }
 }
 
