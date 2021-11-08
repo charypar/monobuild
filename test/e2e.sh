@@ -9,8 +9,13 @@ NC='\033[0m' # No Color
 SUCCESS="${GREEN}✔︎${NC} "
 FAILURE="${RED}✘${NC} "
 
-gopath=`go env GOPATH`
-mb="$gopath/bin/monobuild"
+if [ "$1" == "rust" ] ; then
+  wd=$(pwd)
+  mb="$wd/rs/target/debug/monobuild"
+else 
+  gopath=`go env GOPATH`
+  mb="$gopath/bin/monobuild"
+fi
 cd ./test/fixtures/manifests-test
 
 exit_status=0
@@ -98,7 +103,7 @@ libs/lib2: libs/lib3
 libs/lib3: 
 stack1: !app1, !app2, !app3"
 
-assert_eq "monobuild print --dependencies" "$actual" "$expected"
+assert_eq "monobuild print --full" "$actual" "$expected"
 
 # monobuild print -f dependencies.mb --full
 manifest="one: libs/one, libs/two
@@ -116,9 +121,9 @@ libs/one: libs/three
 libs/three: 
 libs/two: libs/three
 one: libs/one, libs/two
-stack: !one, !two, !three
+stack: !one, !three, !two
 three: libs/three
-two: libs/two, libs/three"
+two: libs/three, libs/two"
 
 assert_eq "monobuild print -f dependencies.mb --full" "$actual" "$expected"
 

@@ -13,12 +13,18 @@ test: build unit-test e2e-test
 e2e-test:
 	@sh test/e2e.sh
 
+e2e-test-rust: build-rust
+	@sh test/e2e.sh rust
+
 unit-test:
 	@go test ./...
 
 # Building
 
 build: install $(GOPATH)/bin/monobuild
+
+build-rust:
+	cd rs && cargo build
 
 $(GOPATH)/bin/monobuild: ./monobuild.go cmd/*.go diff/*.go graph/*.go manifests/*.go set/*.go cli/*.go
 	@go install github.com/charypar/monobuild
