@@ -56,3 +56,17 @@ func (edges Edges) AsStrings() []string {
 
 	return result
 }
+
+// Sorting support
+
+func (edges Edges) Len() int {
+	return len(edges)
+}
+
+func (edges Edges) Less(i, j int) bool {
+	return edges[i].Label < edges[j].Label
+}
+
+func (edges Edges) Swap(i, j int) {
+	edges[i], edges[j] = edges[j], edges[i]
+}

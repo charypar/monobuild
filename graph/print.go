@@ -45,6 +45,7 @@ func (g Graph) Text(selection []string, showType bool) string {
 
 			names = append(names, label)
 		}
+		sort.Strings(names)
 
 		result += fmt.Sprintf("%s: %s\n", c, strings.Join(names, ", "))
 	}
@@ -81,6 +82,8 @@ func (g Graph) Dot(selection []string) string {
 		if noDeps {
 			result += fmt.Sprintf("  \"%s\"\n", c)
 		}
+
+		sort.Sort(deps)
 
 		for _, d := range deps {
 			if !filter.Has(d.Label) {
