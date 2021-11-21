@@ -33,7 +33,11 @@ func diffBase(mode Mode) (string, error) {
 	gitMergeBase := exec.Command("git", "merge-base", mode.BaseBranch, "HEAD")
 	mergeBase, err := gitMergeBase.Output()
 	if err != nil {
-		return "", fmt.Errorf("cannot find merge base with branch '%s': %s", mode.BaseBranch, err.(*exec.ExitError).Stderr)
+		if ee, ok := err.(*exec.ExitError); ok {
+			return "", fmt.Errorf("cannot find merge base with branch '%s': %s", mode.BaseBranch, ee.Stderr)
+		} else {
+			return "", fmt.Errorf("cannot find merge base with branch '%s': %s", mode.BaseBranch, err)
+		}
 	}
 
 	return strings.TrimRight(string(mergeBase), "\n"), nil
@@ -53,7 +57,11 @@ func ChangedFiles(mode Mode) ([]string, error) {
 
 	gitOut, err := gitDiff.Output()
 	if err != nil {
-		return []string{}, fmt.Errorf("cannot find changed files:\n%s", err.(*exec.ExitError).Stderr)
+		if ee, ok := err.(*exec.ExitError); ok {
+			return []string{}, fmt.Errorf("cannot find changed files:\n%s", ee.Stderr)
+		} else {
+			return []string{}, fmt.Errorf("cannot find changed files:\n%s", err)
+		}
 	}
 
 	changed := strings.Split(strings.TrimRight(string(gitOut), "\n"), "\n")
