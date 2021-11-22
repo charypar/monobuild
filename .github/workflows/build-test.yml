@@ -1,8 +1,13 @@
-name: Go
-on: [push]
+name: Build and Test
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
 jobs:
-  build:
-    name: Build
+  build-go:
+    name: Build Go version
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.17
@@ -34,4 +39,31 @@ jobs:
 
       - name: Test
         run: |
-          make test
+          make test-go
+
+  build-rust:
+    name: Build Rust version
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: 0
+      CARGO_TERM_COLOR: always
+      CI: 1
+      RUSTFLAGS: "-W rust-2021-compatibility -D warnings"
+      RUST_BACKTRACE: short
+    steps:
+      - uses: Swatinem/rust-cache@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - name: Check out the code
+        uses: actions/checkout@v1
+
+      - name: Build
+        run: |
+          make build-rust
+
+      - name: Test
+        run: |
+          make test-rust

@@ -9,7 +9,7 @@ NC='\033[0m' # No Color
 SUCCESS="${GREEN}✔︎${NC} "
 FAILURE="${RED}✘${NC} "
 
-if [ "$1" == "rust" ] ; then
+if [ "$1" = "rust" ] ; then
   wd=$(pwd)
   mb="$wd/rs/target/debug/monobuild"
 else 
