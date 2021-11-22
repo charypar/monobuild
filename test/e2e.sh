@@ -49,6 +49,7 @@ expected="app1:
 app2: 
 app3: 
 app4: 
+app4/lib: 
 libs/lib1: 
 libs/lib2: 
 libs/lib3: 
@@ -67,8 +68,9 @@ assert_eq "monobuild print --top-level" "$actual" "$expected"
 actual=$($mb print --dependencies)
 expected="app1: libs/lib1, libs/lib2
 app2: libs/lib2, libs/lib3
-app3: libs/lib3
+app3: app4/lib, libs/lib3
 app4: 
+app4/lib: 
 libs/lib1: libs/lib3
 libs/lib2: libs/lib3
 libs/lib3: 
@@ -96,8 +98,9 @@ assert_eq "monobuild print --dependencies --scope app1" "$actual" "$expected"
 actual=$($mb print --full)
 expected="app1: libs/lib1, libs/lib2
 app2: libs/lib2, libs/lib3
-app3: libs/lib3
+app3: app4/lib, libs/lib3
 app4: 
+app4/lib: 
 libs/lib1: libs/lib3
 libs/lib2: libs/lib3
 libs/lib3: 
@@ -132,16 +135,18 @@ rm dependencies.mb
 # monobuild diff 
 printf "\nDiff command:\n"
 
-changes="libs/lib2/change.txt
-app4/app.bin"
-
 # monobuild diff
+changes="libs/lib2/change.txt
+app4/lib/lib.bin"
+
 actual=$(echo "$changes" | $mb diff -)
 expected="app1: 
 app2: 
+app3: 
 app4: 
+app4/lib: 
 libs/lib2: 
-stack1: app1, app2"
+stack1: app1, app2, app3"
 
 assert_eq "monobuild diff" "$actual" "$expected"
 
