@@ -12,7 +12,7 @@ test: test test-rust
 
 test-go: build unit-test e2e-test
 
-test-rust: test-rust e2e-test-rust
+test-rust: unit-test-rust e2e-test-rust
 
 e2e-test:
 	@sh test/e2e.sh
@@ -23,7 +23,7 @@ e2e-test-rust: build-rust
 unit-test:
 	@go test ./...
 
-test-rust:
+unit-test-rust:
 	cd rs && cargo test
 
 # Building
