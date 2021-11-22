@@ -123,18 +123,9 @@ fn changed_components(components: Vec<&Path>, opts: &DiffOpts) -> Result<HashSet
 
         components
             .iter()
-            .filter_map(|component| {
-                if file_path.starts_with(component) {
-                    Some(
-                        component
-                            .to_str()
-                            .expect("a valid utf-8 component path")
-                            .to_owned(),
-                    )
-                } else {
-                    None
-                }
-            })
+            .filter(|component| file_path.starts_with(component))
+            .flat_map(|component| component.to_str())
+            .map(ToOwned::to_owned)
             .collect::<Vec<_>>()
     })
     .collect())
