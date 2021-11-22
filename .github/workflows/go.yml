@@ -65,6 +65,5 @@ jobs:
           make build-rust
 
       - name: Test
-        uses: Swatinem/rust-cache@v1
         run: |
           make test-rust
