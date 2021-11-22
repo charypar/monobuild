@@ -118,15 +118,24 @@ fn changed_components(components: Vec<&Path>, opts: &DiffOpts) -> Result<HashSet
         }
     }
     .into_iter()
-    .filter_map(|file_path| {
+    .flat_map(|file_path| {
         let file_path = Path::new(&file_path);
-        for component in &components {
-            if file_path.starts_with(component) {
-                return component.to_str().map(|s| s.to_owned());
-            }
-        }
 
-        None
+        components
+            .iter()
+            .filter_map(|component| {
+                if file_path.starts_with(component) {
+                    Some(
+                        component
+                            .to_str()
+                            .expect("a valid utf-8 component path")
+                            .to_owned(),
+                    )
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
     })
     .collect())
 }
