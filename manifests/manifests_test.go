@@ -41,6 +41,7 @@ func Test_Read(t *testing.T) {
 				"app2",
 				"app3",
 				"app4",
+				"app4/lib",
 				"libs/lib1",
 				"libs/lib2",
 				"libs/lib3",
@@ -49,8 +50,9 @@ func Test_Read(t *testing.T) {
 			Dependencies{deps: map[string][]Dependency{
 				"app1":      []Dependency{{"app1", Weak}, {"libs/lib1", Weak}, {"libs/lib2", Weak}},
 				"app2":      []Dependency{{"app2", Weak}, {"libs/lib2", Weak}, {"libs/lib3", Weak}},
-				"app3":      []Dependency{{"app3", Weak}, {"libs/lib3", Weak}},
+				"app3":      []Dependency{{"app3", Weak}, {"libs/lib3", Weak}, {"app4/lib", Weak}},
 				"app4":      []Dependency{{"app4", Weak}},
+				"app4/lib":  []Dependency{{"app4/lib", Weak}},
 				"libs/lib1": []Dependency{{"libs/lib1", Weak}, {"libs/lib3", Weak}},
 				"libs/lib2": []Dependency{{"libs/lib2", Weak}, {"libs/lib3", Weak}},
 				"libs/lib3": []Dependency{{"libs/lib3", Weak}},
