@@ -1,8 +1,13 @@
 name: Go
-on: [push]
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
 jobs:
-  build:
-    name: Build
+  build-go:
+    name: Build Go version
     runs-on: ubuntu-latest
     steps:
       - name: Set up Go 1.17
@@ -34,4 +39,25 @@ jobs:
 
       - name: Test
         run: |
-          make test
+          make test-go
+
+  build-rust:
+    name: Build Rust version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+
+      - name: Check out code into the Go module directory
+        uses: actions/checkout@v1
+
+      - name: Build
+        run: |
+          make build-rust
+
+      - name: Test
+        run: |
+          make test-rust

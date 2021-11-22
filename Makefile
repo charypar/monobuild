@@ -8,7 +8,11 @@ default: build
 run: $(GOPATH)/bin/monobuild
 	@$(GOPATH)/bin/monobuild
 
-test: build unit-test test-rust e2e-test e2e-test-rust
+test: test test-rust
+
+test-go: build unit-test e2e-test
+
+test-rust: test-rust e2e-test-rust
 
 e2e-test:
 	@sh test/e2e.sh
@@ -19,15 +23,15 @@ e2e-test-rust: build-rust
 unit-test:
 	@go test ./...
 
+test-rust:
+	cd rs && cargo test
+
 # Building
 
 build: install $(GOPATH)/bin/monobuild
 
 build-rust:
 	cd rs && cargo build
-
-test-rust:
-	cd rs && cargo test
 
 $(GOPATH)/bin/monobuild: ./monobuild.go cmd/*.go diff/*.go graph/*.go manifests/*.go set/*.go cli/*.go
 	@go install github.com/charypar/monobuild
